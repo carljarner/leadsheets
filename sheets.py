@@ -114,12 +114,18 @@ def _clean_url(value) -> str:
     return url
 
 
-def add_leadsheet(title: str, artist: str = "") -> dict:
-    title = _text(title)
+# /sheets/new is the page for a sheet that isn't saved yet.
+RESERVED_IDS = {"new"}
+
+
+def add_leadsheet(doc: dict) -> dict:
+    """Store a new sheet (the editor's first save of it) under an id made
+    from its title."""
+    title = _text(doc.get("title"))
     if not title:
         raise ValueError("Sheet title can't be empty.")
-    leadsheet_id = _unique_id(title, _existing_ids())
-    sheet = _clean_doc(leadsheet_id, {"title": title, "artist": artist, "elements": []})
+    leadsheet_id = _unique_id(title, _existing_ids() | RESERVED_IDS)
+    sheet = _clean_doc(leadsheet_id, doc)
     _save(sheet)
     return sheet
 

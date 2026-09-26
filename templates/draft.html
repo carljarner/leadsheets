@@ -14,9 +14,13 @@
 <script src="/static/drafts.js?v={{ static_version }}"></script>
 <script>
   // The draft's id is in the URL's #fragment; its sheet is in localStorage.
+  // #new opens a new sheet that isn't stored until its first save.
   window.LEADSHEET_CONFIG = {{ config_json|safe }};
-  const leadsheetId = decodeURIComponent(location.hash.slice(1));
-  const initialSheet = leadsheetId ? window.leadsheetDrafts.get(leadsheetId) : null;
+  const hashId = decodeURIComponent(location.hash.slice(1));
+  const initialSheet = hashId === 'new'
+    ? window.leadsheetDrafts.newSheet('Title', 'Artist')
+    : hashId ? window.leadsheetDrafts.get(hashId) : null;
+  const leadsheetId = initialSheet ? initialSheet.id : hashId;
   if (initialSheet) {
     const editorScript = document.createElement('script');
     editorScript.src = '/static/leadsheet-editor.js?v={{ static_version }}';

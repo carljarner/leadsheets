@@ -5041,6 +5041,8 @@
     try {
       if (config.storage === 'local') {
         window.leadsheetDrafts.save(leadsheetId, model);
+        // A new sheet opens at #new; once stored, reloads should find it.
+        history.replaceState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(leadsheetId)}`);
         dirty = false;
         updateSaveStatus();
         return;
@@ -5054,6 +5056,15 @@
         status.textContent = (await resp.text()) || 'Failed to save.';
         status.classList.add('save-status--error');
         return;
+      }
+      if (config.isNew) {
+        // The first save created the sheet: from now on, save to its own URL.
+        const sheet = await resp.json();
+        config.isNew = false;
+        config.saveUrl = `/sheets/${sheet.id}`;
+        config.deleteUrl = `/sheets/${sheet.id}/delete`;
+        config.afterDeleteUrl = '/sheets';
+        history.replaceState(null, '', `/sheets/${encodeURIComponent(sheet.id)}${location.search}`);
       }
       dirty = false;
       updateSaveStatus();
@@ -5383,6 +5394,7 @@
       location.href = config.afterDeleteUrl;
       return;
     }
+    if (config.isNew) { dirty = false; location.href = config.afterDeleteUrl; return; } // never saved
     const resp = await fetch(config.deleteUrl, { method: 'POST' });
     if (resp.ok) { dirty = false; location.href = config.afterDeleteUrl; }
     else alert('Failed to delete: ' + await resp.text());

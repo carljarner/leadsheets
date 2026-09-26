@@ -1,24 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Create New{% endblock %}
 {% block content %}
-<h1>Create New</h1>
-<p class="muted">
-  {% if admin %}
-  The new sheet goes straight into the archive.
-  {% else %}
-  Your sheet is saved in this browser only &mdash; it isn't added to the archive. Print it or download it as a PDF from the sheet.
-  {% endif %}
-</p>
-
-<form id="new-sheet-form" class="new-sheet-form">
-  <input type="text" id="new-sheet-title" placeholder="Song title" maxlength="200" required autofocus />
-  <input type="text" id="new-sheet-artist" placeholder="Artist" maxlength="200" />
-  <p id="new-sheet-error" class="error" hidden></p>
-  <button type="submit" class="primary">Create</button>
-</form>
+<div class="setlists-toolbar">
+  <h1>Your Drafts</h1>
+  <button type="button" id="new-sheet-btn" class="add-row-btn add-row-btn--inline" title="New sheet" aria-label="New sheet">+</button>
+</div>
 
 <section id="drafts" class="drafts" hidden>
-  <h2>Your drafts</h2>
   <p class="muted">Saved in this browser only.</p>
   <ul id="drafts-list" class="setlist-cards"></ul>
 </section>
@@ -28,45 +16,20 @@
 <script src="/static/drafts.js?v={{ static_version }}"></script>
 <script>
   const isAdmin = {{ 'true' if admin else 'false' }};
-  const form = document.getElementById('new-sheet-form');
-  const titleInput = document.getElementById('new-sheet-title');
-  const artistInput = document.getElementById('new-sheet-artist');
-  const errorBox = document.getElementById('new-sheet-error');
+  const newButton = document.getElementById('new-sheet-btn');
 
-  function showError(message) {
-    errorBox.textContent = message;
-    errorBox.hidden = false;
-  }
-
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    errorBox.hidden = true;
-    const title = titleInput.value.trim();
-    const artist = artistInput.value.trim();
-    if (!title) { titleInput.focus(); return; }
-    if (isAdmin) {
-      const resp = await fetch('/sheets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, artist }),
-      });
-      if (!resp.ok) { showError('Couldn’t create the sheet: ' + await resp.text()); return; }
-      const sheet = await resp.json();
-      location.href = `/sheets/${sheet.id}?mode=edit`;
-      return;
-    }
-    try {
-      const draft = window.leadsheetDrafts.create(title, artist);
-      location.href = `/draft?mode=edit#${encodeURIComponent(draft.id)}`;
-    } catch (err) {
-      showError('Couldn’t save in this browser. Storage may be full or blocked (e.g. a private window).');
-    }
+  // Start straight in the editor with placeholder text to overwrite there.
+  newButton.addEventListener('click', () => {
+    location.href = isAdmin ? '/sheets/new?mode=edit' : '/draft?mode=edit#new';
   });
 
   // Drafts made in this browser (only viewers make them, but show any).
-  const drafts = window.leadsheetDrafts.list();
-  if (drafts.length) {
+  // Rendered on every pageshow, not just load: coming Back from the editor
+  // can restore this page from the back/forward cache with a stale list.
+  function renderDrafts() {
+    const drafts = window.leadsheetDrafts.list();
     const list = document.getElementById('drafts-list');
+    list.replaceChildren();
     for (const draft of drafts) {
       const li = document.createElement('li');
       li.className = 'setlist-card leadsheet-card';
@@ -88,7 +51,8 @@
       li.appendChild(a);
       list.appendChild(li);
     }
-    document.getElementById('drafts').hidden = false;
+    document.getElementById('drafts').hidden = !drafts.length;
   }
+  window.addEventListener('pageshow', renderDrafts);
 </script>
 {% endblock %}

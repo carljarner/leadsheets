@@ -165,10 +165,29 @@ async def _read_json(request: Request) -> dict:
 async def sheets_create(request: Request):
     require_admin(request)
     try:
-        body = await _read_json(request)
-        return sheets.add_leadsheet(body.get("title", ""), body.get("artist", ""))
+        return sheets.add_leadsheet(await _read_json(request))
     except (ValueError, TypeError) as exc:
         return Response(content=str(exc), status_code=400)
+
+
+@app.get("/sheets/new", response_class=HTMLResponse)
+async def sheet_new_page(request: Request):
+    # A new sheet opens in the editor unsaved; its first Save POSTs to
+    # /sheets, which creates it in the archive.
+    require_admin(request)
+    sheet = {"id": "", "title": "Title", "artist": "Artist", "key": "", "elements": []}
+    config = {
+        "canEdit": True,
+        "storage": "server",
+        "isNew": True,
+        "saveUrl": "/sheets",
+        "afterDeleteUrl": "/new",
+    }
+    return templates.TemplateResponse(
+        request,
+        "sheet.html",
+        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config)},
+    )
 
 
 @app.get("/sheets/{leadsheet_id}", response_class=HTMLResponse)

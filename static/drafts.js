@@ -39,9 +39,10 @@
     return doc;
   }
 
-  function create(title, artist) {
+  // A new, unsaved draft: nothing is stored until the editor saves it.
+  function newSheet(title, artist) {
     const id = `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    return save(id, { title, artist, key: '', elements: [] });
+    return { id, title, artist, key: '', elements: [] };
   }
 
   function remove(id) {
@@ -51,5 +52,5 @@
     } catch (err) { /* nothing to remove */ }
   }
 
-  window.leadsheetDrafts = { list, get, save, create, remove };
+  window.leadsheetDrafts = { list, get, save, newSheet, remove };
 })();
