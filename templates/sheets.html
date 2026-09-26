@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Lead Sheets{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+<div class="setlists-toolbar leadsheets-toolbar">
+  <h1>Lead Sheets</h1>
+  {% if sheets %}
+  <input type="search" id="sheet-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search lead sheets" autocomplete="off" />
+  {% endif %}
+</div>
+
+{% if sheets %}
+<ul class="setlist-cards">
+  {% for sheet in sheets %}
+  <li class="setlist-card leadsheet-card" data-search="{{ (sheet.title ~ ' ' ~ (sheet.artist or '')) | lower }}">
+    <a href="/sheets/{{ sheet.id }}" class="leadsheet-card__link">
+      <div class="setlist-card__header">
+        <span>{{ sheet.title }}</span>
+      </div>
+      {% if sheet.artist %}<div class="leadsheet-card__artist">{{ sheet.artist }}</div>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+<p id="sheet-search-empty" class="muted" hidden>No lead sheets match your search.</p>
+{% else %}
+<p class="muted">No lead sheets in the archive yet.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const sheetSearch = document.getElementById('sheet-search');
+  if (sheetSearch) {
+    const cards = [...document.querySelectorAll('.leadsheet-card')];
+    const empty = document.getElementById('sheet-search-empty');
+    sheetSearch.addEventListener('input', () => {
+      const terms = sheetSearch.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const card of cards) {
+        const match = terms.every(t => card.dataset.search.includes(t));
+        card.hidden = !match;
+        if (match) shown++;
+      }
+      empty.hidden = shown > 0;
+    });
+  }
+</script>
+{% endblock %}

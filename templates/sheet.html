@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ sheet.title }}{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+<p class="no-print"><a class="back" href="/sheets">&larr; Lead Sheets</a></p>
+
+{% include "_leadsheet_editor_body.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.LEADSHEET_CONFIG = {{ config_json|safe }};
+  const initialSheet = {{ sheet_json|safe }};
+  const leadsheetId = "{{ sheet.id }}";
+</script>
+<script src="/static/leadsheet-editor.js?v={{ static_version }}"></script>
+{% endblock %}

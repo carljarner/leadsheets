@@ -1,0 +1,181 @@
+{# The lead sheet editor's markup: the sheet page, its tools and dialogs.
+   Shared by the archive sheet page (sheet.html) and the browser draft page
+   (draft.html) -- static/leadsheet-editor.js looks all of these ids up on load. #}
+<div class="viewer-bar only-viewer no-print">
+  <div class="viewer-bar__text">
+    <div id="viewer-title" class="viewer-bar__title"></div>
+    <div id="viewer-artist" class="viewer-bar__artist"></div>
+  </div>
+  <button type="button" id="viewer-pdf-btn" class="primary">PDF</button>
+</div>
+
+<div class="editor-layout">
+  <div id="left-column" class="editor-palette editor-palette--left no-print">
+    <div class="edit-box transpose-box">
+      <div class="eb-head eb-head--toggle">
+        <span class="eb-head-title">Transpose</span>
+        <button type="button" id="transpose-toggle" class="eb-btn tr-toggle edit-only" aria-expanded="true" aria-controls="transpose-body" title="Hide transpose"><span>▸</span></button>
+      </div>
+      <div id="transpose-body">
+        <div class="eb-field tr-sheet-key edit-only">
+          <span class="eb-label">Sheet key</span>
+          <span id="sheet-key"></span>
+        </div>
+        <div id="transpose-box"></div>
+      </div>
+    </div>
+    <button type="button" id="practice-print-btn" class="btn-small practice-print practice-only desktop-only">Print</button>
+    <div id="edit-box" class="edit-box edit-only"></div>
+    <div class="palette-tiles edit-only">
+      <div class="palette-tile" draggable="true" data-type="title" title="Title box">
+        <span class="tile-title-box">Title</span>
+      </div>
+      <div class="palette-tile" draggable="true" data-type="chordText" title="Chord text">
+        <span class="tile-chord-text">Am</span>
+      </div>
+      <div class="palette-tile" draggable="true" data-type="text" title="Text">
+        <span class="tile-text-text">Note</span>
+      </div>
+      <div class="palette-tile" draggable="true" data-type="volta" title="Volta (1st/2nd ending)">
+        <svg class="tile-svg" width="42" height="24" viewBox="0 0 46 28">
+          <path d="M3 25 V4 H43" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          <text x="8" y="20" class="tile-volta-num">1.</text>
+        </svg>
+      </div>
+      <div class="palette-tile" draggable="true" data-type="arrow" title="Arrow">
+        <svg class="tile-svg" width="42" height="24" viewBox="0 0 46 28">
+          <defs>
+            <marker id="tile-arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" style="fill:#1a1815" />
+            </marker>
+          </defs>
+          <path d="M2 25 L40 3" fill="none" stroke-width="1.5" marker-end="url(#tile-arrowhead)" />
+        </svg>
+      </div>
+      <div class="palette-tile palette-tile--glyph" draggable="true" data-type="glyph" data-code="&#xE4C0;" title="Fermata"><span>&#xE4C0;</span></div>
+    </div>
+  </div>
+
+  <div class="page-column">
+    <div class="sheet-fields edit-only no-print">
+      <button type="button" id="print-btn" class="btn-small sheet-print">Print</button>
+      <input type="text" id="sheet-title" class="editor-title-input" placeholder="Song title" />
+      <input type="text" id="sheet-artist" class="editor-artist-input" placeholder="Artist" />
+      <div class="sheet-save">
+        <span id="save-status" class="save-status">Saved</span>
+        <button type="button" id="save-btn" class="primary btn-small">Save</button>
+      </div>
+    </div>
+    <div id="page-wrap" class="page-wrap">
+      <svg id="sheet-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <button type="button" id="delete-btn" class="danger btn-small sheet-delete edit-only no-print">Delete</button>
+  </div>
+
+  <div id="glyph-palette" class="editor-palette editor-palette--side no-print">
+    <div class="edit-box mode-box desktop-only">
+      <div class="eb-head"><span class="eb-head-title">Mode</span></div>
+      <span class="eb-seg mode-seg">
+        <button type="button" class="eb-btn" data-mode="practice">Practice</button>
+        <button type="button" class="eb-btn" data-mode="edit">Edit</button>
+      </span>
+    </div>
+
+    <div class="edit-box practice-box practice-only">
+      <div class="eb-head"><span class="eb-head-title">Links</span></div>
+      <div id="practice-links" class="practice-links"></div>
+    </div>
+
+    <div id="links-box" class="edit-box links-box edit-only">
+      <div class="eb-head eb-head--toggle">
+        <span class="eb-head-title">Links</span>
+        <button type="button" id="links-toggle" class="eb-btn tr-toggle" aria-expanded="false" aria-controls="links-fields" title="Show links"><span>▸</span></button>
+      </div>
+      <div id="links-fields" hidden>
+        <label class="eb-field eb-field--wide links-field">
+          <span class="eb-label">Lyrics</span>
+          <input type="url" id="link-lyrics" placeholder="https://…" />
+        </label>
+        <label class="eb-field eb-field--wide links-field">
+          <span class="eb-label">YouTube</span>
+          <input type="url" id="link-youtube" placeholder="https://youtube.com/…" />
+        </label>
+        <label class="eb-field eb-field--wide links-field">
+          <span class="eb-label">Spotify</span>
+          <input type="url" id="link-spotify" placeholder="https://open.spotify.com/…" />
+        </label>
+      </div>
+    </div>
+
+    <div class="bars-builder edit-only">
+      <div class="bars-builder-count">
+        <span class="eb-label">Bars</span>
+        <span id="bars-count-stepper"></span>
+      </div>
+      <svg id="bars-builder-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="bars-builder-controls">
+        <span id="bars-builder-drag" class="bars-builder-drag" draggable="true" title="Drag these bars onto the page">&#10021; drag to page</span>
+      </div>
+    </div>
+
+    <div class="rhythm-builder edit-only">
+      <div class="rhythm-builder-timesig" id="rhythm-time-sig"></div>
+      <svg id="rhythm-builder-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="rhythm-builder-controls">
+        <span id="rhythm-builder-drag" class="rhythm-builder-drag" draggable="true" title="Drag this rhythm bar onto the page">&#10021; drag to page</span>
+      </div>
+    </div>
+
+    <div class="staff-builder edit-only">
+      <div class="staff-builder-controls-row">
+        <span id="staff-clef"></span>
+        <span id="staff-time-sig"></span>
+      </div>
+      <div id="staff-key-label" class="staff-builder-key" title="A new staff starts on the sheet's key. Change a placed staff's key in its edit box."></div>
+      <svg id="notestaff-builder-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="staff-builder-controls">
+        <span id="staff-builder-drag" class="staff-builder-drag" draggable="true" title="Drag this note staff onto the page, then write its notes">&#9834; drag to page</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="viewer-share" class="viewer-share only-viewer no-print" hidden>
+  <button type="button" id="viewer-share-btn" class="primary">Share</button>
+</div>
+
+<div id="confirm-modal" class="modal-overlay no-print" hidden>
+  <div class="modal-box modal-box--centered modal-box--confirm">
+    <p id="confirm-text">Delete this lead sheet?</p>
+    <div class="modal-actions">
+      <button type="button" id="confirm-cancel" class="btn-small">Cancel</button>
+      <button type="button" id="confirm-ok" class="danger btn-small">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="staff-editor" class="modal-overlay staff-editor no-print" hidden>
+  <div class="modal-box staff-editor__box" role="dialog" aria-modal="true" aria-labelledby="staff-editor-title">
+    <div class="staff-editor__head">
+      <div>
+        <h2 id="staff-editor-title" class="staff-editor__title">Note staff</h2>
+        <div id="staff-editor-info" class="staff-editor__info"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="staff-editor-cancel" class="eb-btn" title="Undo everything since the editor opened">Cancel</button>
+        <button type="button" id="staff-editor-done" class="eb-btn eb-btn--primary" title="Keep the changes (Esc)">Done</button>
+      </div>
+    </div>
+    <div id="staff-editor-props" class="staff-editor__props"></div>
+    <div id="staff-editor-toolbar" class="staff-editor__toolbar"></div>
+    <div class="staff-editor__page">
+      <svg id="staff-editor-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <input type="text" id="staff-editor-chord" class="staff-editor-chord-input" autocomplete="off" spellcheck="false" aria-label="Chord symbol" hidden />
+    </div>
+    <div class="staff-editor__status">
+      <span id="staff-editor-status"></span>
+      <span id="staff-editor-message" class="staff-editor__message" hidden></span>
+    </div>
+    <div id="staff-editor-help" class="staff-editor__help" hidden></div>
+  </div>
+</div>

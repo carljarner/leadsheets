@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{% block title %}Lead Sheets{% endblock %} &middot; leadsheets.dk</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png?v={{ static_version }}" />
+  <link rel="icon" href="/static/favicon.ico?v={{ static_version }}" sizes="any" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}" />
+  {% block extra_style %}{% endblock %}
+
+  {# Fetch a tab's page on hover so the click lands instantly (Chrome/Edge). #}
+  <script type="speculationrules">
+  {"prefetch": [{"where": {"selector_matches": ".page-tabs__tab"}, "eagerness": "moderate"}]}
+  </script>
+</head>
+<body>
+  {% block topbar %}
+  <header class="topbar">
+    <a href="/sheets" class="topbar__brand">LEADSHEETS.DK</a>
+    <form method="post" action="/logout" class="topbar__account">
+      <span class="topbar__role">{{ 'Admin' if request.session.get('role') == 'admin' else 'Viewer' }}</span>
+      <button type="submit" class="btn-small">Log out</button>
+    </form>
+  </header>
+  {% endblock %}
+  {% block page_nav %}
+  {% set section = request.url.path.split('/')[1] %}
+  <nav class="main-nav">
+    <div class="main-nav__tabs page-tabs">
+      <a href="/sheets" class="page-tabs__tab {{ 'is-active' if section == 'sheets' }}">Lead Sheets</a>
+      <a href="/new" class="page-tabs__tab {{ 'is-active' if section in ('new', 'draft') }}">Create New</a>
+    </div>
+  </nav>
+  {% endblock %}
+  <main class="container {% block container_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

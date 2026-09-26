@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Draft{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+<p class="no-print"><a class="back" href="/new">&larr; Create New</a></p>
+<p id="draft-missing" class="muted" hidden>This draft isn't saved in this browser. Drafts live only in the browser they were made in.</p>
+
+<div id="draft-editor">
+{% include "_leadsheet_editor_body.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/drafts.js?v={{ static_version }}"></script>
+<script>
+  // The draft's id is in the URL's #fragment; its sheet is in localStorage.
+  window.LEADSHEET_CONFIG = {{ config_json|safe }};
+  const leadsheetId = decodeURIComponent(location.hash.slice(1));
+  const initialSheet = leadsheetId ? window.leadsheetDrafts.get(leadsheetId) : null;
+  if (initialSheet) {
+    const editorScript = document.createElement('script');
+    editorScript.src = '/static/leadsheet-editor.js?v={{ static_version }}';
+    document.body.appendChild(editorScript);
+  } else {
+    document.getElementById('draft-editor').hidden = true;
+    document.getElementById('draft-missing').hidden = false;
+  }
+</script>
+{% endblock %}

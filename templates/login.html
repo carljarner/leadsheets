@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Log in{% endblock %}
+{% block topbar %}{% endblock %}
+{% block page_nav %}{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <form method="post" action="/login">
+      <h1>leadsheets.dk</h1>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <input type="password" name="password" placeholder="Password" autofocus required />
+      <button type="submit">Log in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

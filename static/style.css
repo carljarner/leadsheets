@@ -1,0 +1,1726 @@
+:root {
+  --bg: #0b0c0f;
+  --surface: #16181d;
+  --surface-alt: #1e2129;
+  --text: #f2f0eb;
+  --text-dim: #a9a9b3;
+  --accent: #ff5a4e;
+  --accent-2: #4fd7d1;
+  --break: #5d7fb0;
+  --radius: 10px;
+  --max: 760px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+h1, h2, legend {
+  font-family: 'Bebas Neue', 'Inter', sans-serif;
+  letter-spacing: 0.03em;
+  font-weight: 400;
+}
+
+h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); }
+
+a { color: var(--accent-2); }
+
+/* ---------- Layout ---------- */
+.container {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+.container--wide { max-width: 900px; }
+.container--full { max-width: none; padding: 2rem; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.topbar__logo {
+  height: 32px;
+  width: auto;
+  display: block;
+}
+
+.topbar__brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ---------- Common bits ---------- */
+a.back {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+a.back:hover { color: var(--text); }
+
+.error {
+  color: var(--accent);
+  background: rgba(255,90,78,0.08);
+  border: 1px solid rgba(255,90,78,0.35);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.muted, .song-meta {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+fieldset {
+  margin-top: 1.5rem;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+legend {
+  padding: 0 0.4rem;
+  color: var(--text);
+}
+
+/* ---------- Forms ---------- */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="url"],
+input[type="number"],
+input[type="search"],
+input[type="file"] {
+  background: var(--surface-alt);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text);
+  border-radius: 100px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+}
+
+input[type="file"] { border-radius: var(--radius); }
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button {
+  border-radius: 6px;
+  padding: 0.6rem 1.4rem;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  font-family: inherit;
+}
+
+button:hover {
+  background: var(--accent);
+  color: #12130f;
+}
+
+button.primary { align-self: flex-start; }
+
+
+/* ---------- Repertoire ---------- */
+.repertoire-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.save-status {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.save-status.unsaved,
+.save-status.save-status--error { color: var(--accent); }
+
+.repertoire-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-top: 0.75rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+}
+
+table.repertoire {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+table.repertoire th:nth-child(1), table.repertoire td:nth-child(1) { width: 56px; }
+table.repertoire th:nth-child(2), table.repertoire td:nth-child(2) { width: 20%; }
+table.repertoire th:nth-child(3), table.repertoire td:nth-child(3) { width: calc(17% - 20px); }
+table.repertoire th:nth-child(4), table.repertoire td:nth-child(4) { width: 6%; }
+table.repertoire th:nth-child(5), table.repertoire td:nth-child(5) { width: 6%; }
+table.repertoire th:nth-child(6), table.repertoire td:nth-child(6) { width: 10%; }
+table.repertoire th:nth-child(7), table.repertoire td:nth-child(7) { width: 10%; }
+table.repertoire th:nth-child(8), table.repertoire td:nth-child(8) { width: 8%; }
+table.repertoire th:nth-child(9), table.repertoire td:nth-child(9) { width: 7%; }
+table.repertoire th:nth-child(10), table.repertoire td:nth-child(10) { width: 7%; }
+
+.cover-cell {
+  padding: 0.25rem !important;
+  text-align: center;
+}
+
+.cover-edit {
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin: 0 auto;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--surface-alt);
+  cursor: pointer;
+  position: relative;
+}
+
+.cover-edit:hover {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.cover-preview {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--surface-alt);
+}
+
+.cover-preview-empty {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+table.repertoire th {
+  text-align: left;
+  color: var(--accent-2);
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+  font-size: 1.05rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--surface);
+  border-bottom: 2px solid rgba(255,255,255,0.15);
+  white-space: nowrap;
+}
+
+table.repertoire th.sortable { cursor: pointer; user-select: none; }
+table.repertoire th.sortable:hover { color: var(--text); }
+table.repertoire .sort-arrow { font-size: 0.75rem; color: var(--text-dim); }
+
+table.repertoire td {
+  padding: 0.25rem 0.35rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+table.repertoire tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+table.repertoire input[type="text"],
+table.repertoire select {
+  width: 100%;
+  min-width: 90px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+table.repertoire input[type="text"]:hover,
+table.repertoire select:hover {
+  border-color: rgba(255,255,255,0.15);
+  background: var(--surface-alt);
+}
+
+table.repertoire input[type="text"]:focus,
+table.repertoire select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface-alt);
+}
+
+/* No dropdown arrows in the repertoire -- they clutter the table. */
+table.repertoire select { appearance: none; -webkit-appearance: none; cursor: pointer; }
+
+table.repertoire select option,
+table.setlist-table select option { background: var(--surface); color: var(--text); }
+
+td.actions { white-space: nowrap; }
+
+table.repertoire button.row-delete {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+}
+
+table.repertoire button.row-delete {
+  border-color: var(--text-dim);
+  color: var(--text-dim);
+}
+
+table.repertoire button.row-delete:hover {
+  background: var(--text-dim);
+  color: #12130f;
+}
+
+.add-row-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0.75rem auto 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.3rem;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.add-row-btn:hover { background: var(--accent); color: #12130f; }
+/* In a page toolbar (Gigs, Lead Sheets) rather than centred under a list. */
+.add-row-btn--inline { margin: 0; flex-shrink: 0; }
+
+/* A compact button, for secondary actions and tight toolbars. */
+.btn-small,
+.button-link.btn-small { padding: 0.35rem 0.9rem; font-size: 0.72rem; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay[hidden] { display: none; }
+
+.modal-box {
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 320px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.modal-box p { margin: 0 0 1.25rem; }
+.modal-box--centered { max-width: 380px; }
+.modal-box--centered p { text-align: center; font-weight: 600; }
+.modal-box--centered .modal-actions { justify-content: center; }
+.modal-box--wide { max-width: 540px; }
+/* Delete confirmations: as wide as the question on one line (at least
+   260px), wrapping only if that's wider than the screen. */
+.modal-box--confirm {
+  width: max-content;
+  min-width: 260px;
+  max-width: calc(100vw - 2rem);
+}
+.modal-box input[type="url"] { width: 100%; margin-bottom: 1.25rem; }
+.modal-box .field { margin-bottom: 1.25rem; }
+.modal-box .field input { width: 100%; box-sizing: border-box; }
+/* New lead sheet: the modal hugs its narrow, squarer fields. */
+.modal-box--new-sheet { width: max-content; max-width: calc(100vw - 2rem); }
+.modal-box .new-sheet-field { align-items: center; }
+.modal-box .new-sheet-field input { width: 295px; max-width: 100%; border-radius: var(--radius); }
+.modal-box .new-sheet-field + .new-sheet-field { margin-top: -0.5rem; }
+.modal-box .save-status { display: block; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+button.danger { border-color: var(--accent); color: var(--accent); }
+button.danger:hover { background: var(--accent); color: #12130f; }
+
+/* ---------- Login ---------- */
+.login-wrap {
+  display: flex;
+  min-height: 70vh;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 280px;
+}
+
+.login-card { text-align: center; }
+.login-card h1 { margin-top: 0; font-size: 1.6rem; text-align: center; }
+.login-card form { gap: 0.75rem; }
+
+/* ---------- Page tabs ---------- */
+.main-nav {
+  padding: 2rem 1.5rem 0;
+}
+
+.main-nav + .container {
+  padding-top: 0;
+}
+
+.page-tabs {
+  display: flex;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.page-tabs__tab {
+  flex: 1 1 20%;
+  padding: 0.75rem 0.5rem;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s ease;
+}
+
+.page-tabs__tab:hover { color: var(--text); }
+
+.page-tabs__tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.setlists-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.button-link {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 0.6rem 1.4rem;
+  border: 2px solid var(--accent);
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.button-link:hover { background: var(--accent); color: #12130f; }
+.button-link[hidden] { display: none; }
+
+.setlist-section + .setlist-section { margin-top: 2rem; }
+
+.setlist-section h2 {
+  margin: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.05em;
+  font-size: 1.3rem;
+  color: var(--accent-2);
+}
+
+.setlist-cards {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.setlist-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.2s ease;
+}
+
+.setlist-card:hover { border-color: var(--accent-2); }
+
+.setlist-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.setlist-card__date { color: var(--accent-2); white-space: nowrap; }
+.setlist-card__venue { font-size: 1.1rem; text-align: right; }
+.setlist-card__lineup { margin: 0.5rem 0 0.15rem; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field > span {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+textarea {
+  background: var(--surface-alt);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.form-actions__save {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.form-actions button.danger { align-self: center; }
+
+.date-picker { position: relative; }
+
+.date-picker__trigger {
+  width: 100%;
+  min-width: 220px;
+  text-align: left;
+  background: var(--surface-alt);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.date-picker__trigger:hover { background: var(--surface-alt); color: var(--text); }
+.date-picker.open .date-picker__trigger,
+.date-picker__trigger:focus { outline: none; border-color: var(--accent); }
+.date-picker__trigger--error { border-color: var(--accent); }
+
+.date-picker__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.date-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.date-picker__month {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.04em;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.date-picker__nav {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.date-picker__nav:hover { background: var(--accent); color: #12130f; }
+
+.date-picker__weekdays,
+.date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+.date-picker__weekdays span {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  padding: 0.25rem 0;
+}
+
+.date-picker__day {
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.4rem 0;
+  aspect-ratio: 1;
+}
+
+.date-picker__day:hover { background: var(--surface-alt); border-color: rgba(255,255,255,0.15); }
+.date-picker__day.is-today { color: var(--accent-2); }
+.date-picker__day.is-selected { border-color: var(--accent); background: rgba(255,90,78,0.12); }
+
+/* ---------- Lead sheets library ---------- */
+.leadsheets-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Title left, search centred, actions right. */
+.leadsheets-toolbar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 360px) 1fr;
+}
+.leadsheets-toolbar .leadsheets-toolbar-actions { grid-column: 3; justify-self: end; }
+
+.leadsheets-search {
+  grid-column: 2;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: var(--radius);
+}
+
+.setlist-card.leadsheet-card[hidden] { display: none; }
+
+@media (max-width: 600px) {
+  .leadsheets-toolbar { grid-template-columns: 1fr auto; }
+  .leadsheets-search { grid-column: 1 / -1; grid-row: 2; }
+  .leadsheets-toolbar .leadsheets-toolbar-actions { grid-column: 2; }
+}
+
+.leadsheet-card {
+  position: relative;
+  /* The padding lives on the link instead, so the whole card is clickable. */
+  padding: 0;
+}
+
+.leadsheet-card__link {
+  display: block;
+  height: 100%;
+  padding: 1rem 1.25rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.leadsheet-card__artist {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* ---------- Lead sheet editor ---------- */
+@font-face {
+  font-family: 'MuseJazzText';
+  src: url('/static/fonts/MuseJazzText.otf') format('opentype');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'MuseJazz';
+  src: url('/static/fonts/MuseJazz.otf') format('opentype');
+  font-display: swap;
+}
+
+/* Title and artist, centred over the sheet. Positioned above the page
+   column rather than in its flow, so the sheet's top edge lines up with the
+   tops of the side columns; .editor-layout's margin-top makes the room. */
+.sheet-fields {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.6rem);
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  /* Keeps the centred fields clear of Print and Save on either side. */
+  padding: 0 8rem;
+}
+
+/* Print flush with the sheet's left edge, Save (and its status) with its right. */
+.sheet-print {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+.sheet-save {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Sized to match the compact (.btn-small) buttons beside them. */
+.sheet-fields input[type="text"] {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+.editor-title-input { width: 260px; min-width: 0; flex: 0 1 auto; }
+.editor-artist-input { width: 200px; min-width: 0; flex: 0 1 auto; }
+.tr-sheet-key { margin: 0.3rem 0 0.2rem; }
+.link-box .eb-field { display: flex; width: 100%; }
+.link-box .eb-field select { flex: 1; width: 100%; min-width: 0; max-width: none; }
+
+
+.editor-layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  /* Room to scroll past the bottom of the page (screen only, see print). */
+  padding-bottom: 400px;
+  /* Room for the title/artist fields above the sheet (see .sheet-fields). */
+  margin-top: 3rem;
+}
+
+.editor-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.editor-palette--side {
+  flex: 0 0 auto;
+  flex-direction: column;
+  width: 64px;
+  /* Stay in view while the (tall) page scrolls, so elements can be dragged
+     onto any part of it. */
+  position: sticky;
+  top: 1rem;
+}
+/* The builders column can be taller than a short window: scroll it
+   internally rather than leaving its bottom unreachable. */
+#glyph-palette {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  flex-wrap: nowrap;
+}
+#glyph-palette > * { flex-shrink: 0; }
+
+/* The right-side (rhythm) palette is wider than the left, to fit the
+   rhythm bar builder at a legible size. */
+#glyph-palette { width: 270px; }
+
+/* The left column: the edit box on top, the drag tiles below it. Sticky and
+   internally scrolling like the builders column, so both stay reachable
+   beside the (tall) page. */
+.editor-palette--left {
+  flex: 0 0 auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  width: 250px;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+.editor-palette--left > * { flex-shrink: 0; }
+.palette-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Palette tiles are deliberately NOT styled like the app's buttons -- each
+   one is a small literal preview of the element it drags onto the page, so
+   it looks like the paper-page content, not the dark app chrome. */
+.palette-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.9rem;
+  padding: 0 0.4rem;
+  background: #fbfaf6;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  cursor: grab;
+  color: #1a1815;
+}
+
+.palette-tile:active { cursor: grabbing; }
+
+.editor-palette--side .palette-tile { width: 100%; }
+
+.rhythm-builder,
+.bars-builder {
+  background: #16181d;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Fixed height regardless of content -- height:auto would otherwise
+   scale the whole SVG (viewBox included) to preserve its aspect ratio,
+   so fewer beats (a narrower viewBox) made the box visibly taller. */
+#rhythm-builder-svg {
+  display: block;
+  width: 100%;
+  height: 68px;
+  background: #fbfaf6;
+  border-radius: 3px;
+}
+
+#bars-builder-svg {
+  display: block;
+  width: 100%;
+  height: 44px;
+  background: #fbfaf6;
+  border-radius: 3px;
+}
+
+.rhythm-builder-controls,
+.bars-builder-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.rhythm-builder-drag,
+.bars-builder-drag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: #fbfaf6;
+  color: #1a1815;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  font-size: 0.68rem;
+  cursor: grab;
+}
+
+.rhythm-builder-drag:active,
+.bars-builder-drag:active { cursor: grabbing; }
+
+#rhythm-builder-reset {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+}
+
+.rhythm-builder-timesig,
+.bars-builder-count {
+  margin-bottom: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.rhythm-builder-timesig label,
+.bars-builder-count label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* "Bars" and its stepper on one line. */
+.bars-builder-count {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.staff-builder {
+  background: #16181d;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.staff-builder-key {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 0.3rem;
+}
+
+#notestaff-builder-svg {
+  display: block;
+  width: 100%;
+  height: 68px; /* the rhythm builder's height */
+  background: #fbfaf6;
+  border-radius: 3px;
+}
+
+.staff-builder-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.staff-builder-controls-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.staff-builder-controls-row select {
+  padding: 0.15rem 0.3rem;
+  font-size: 0.72rem;
+}
+
+.staff-builder-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.staff-builder-drag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background: #fbfaf6;
+  color: #1a1815;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  font-size: 0.68rem;
+  cursor: grab;
+}
+
+.staff-builder-drag:active { cursor: grabbing; }
+
+.tile-title-box {
+  border: 1.5px solid #1a1815;
+  background: #fff;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: 'MuseJazzText', cursive;
+  font-size: 0.75rem;
+}
+
+.tile-chord-text { font-family: 'MuseJazzText', cursive; font-size: 0.9rem; }
+.tile-text-text { font-family: 'MuseJazzText', cursive; font-size: 0.8rem; color: #55504a; }
+
+.tile-svg { display: block; overflow: visible; }
+.tile-svg line, .tile-svg path { stroke: #1a1815; }
+.tile-svg circle { fill: #1a1815; }
+.tile-volta-num { font-family: 'MuseJazzText', cursive; font-size: 13px; fill: #1a1815; }
+
+.palette-tile--glyph {
+  font-family: 'MuseJazz', serif;
+  font-size: 1.2rem;
+}
+
+.palette-tile--glyph span {
+  display: inline-block;
+  transform: scale(1.15, 0.8); /* matches GLYPH_SCALE_X/Y in leadsheet-editor.js */
+}
+
+/* The sheet with its title/artist fields above it. Shrinks (down to
+   ~560px) so the two side columns still fit beside it on a laptop; the SVG
+   inside scales with it. */
+.page-column {
+  flex: 1 1 560px;
+  min-width: 0;
+  max-width: 794px;
+  position: relative;
+}
+
+.page-wrap {
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  border-radius: 2px;
+  transition: box-shadow 0.15s;
+}
+
+/* Under the sheet, out of the way of the everyday toolbar buttons. */
+.sheet-delete { display: block; margin: 1.5rem auto 0; }
+
+.page-wrap.drag-over { box-shadow: 0 0 0 3px var(--accent), 0 10px 40px rgba(0,0,0,0.5); }
+
+#sheet-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 794 / 1123;
+}
+
+.rhythm-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  padding: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  max-width: 260px;
+}
+
+.rhythm-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.4rem 0.3rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--surface-alt);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.rhythm-menu-item:hover { border-color: var(--accent-2); background: rgba(79,215,209,0.12); }
+.rhythm-menu-item:disabled { opacity: 0.35; pointer-events: none; }
+
+.rhythm-menu-glyph {
+  font-family: 'MuseJazz', serif;
+  font-size: 1.3rem;
+  line-height: 1;
+  min-height: 1.3rem;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Extra sections under the duration grid (articulation / accidental): a
+   heading plus a row of toggle buttons spanning every grid column. The
+   button whose value is currently set on the cell shows as pressed. */
+.rhythm-menu-heading {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.rhythm-menu-row {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.rhythm-menu-item--on { border-color: var(--accent); background: rgba(255,90,78,0.16); }
+
+.rhythm-menu-icon { display: block; overflow: visible; pointer-events: none; }
+.rhythm-menu-icon .el-artic-line { stroke: var(--text); }
+.rhythm-menu-icon .el-artic-dot { fill: var(--text); }
+.rhythm-menu-icon .el-tie { fill: var(--text); }
+
+.rhythm-menu-label {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.15;
+}
+
+/* ---------- Edit box (top of the left column) ---------- */
+.edit-box {
+  background: #16181d;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 0.55rem;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.eb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+.eb-head-title { color: var(--text); font-size: 0.82rem; font-weight: 600; }
+.eb-head-hint { font-size: 0.62rem; }
+.eb-empty { line-height: 1.45; }
+.eb-empty p { margin: 0 0 0.4rem; }
+.eb-empty ul { margin: 0; padding-left: 1.1rem; }
+.eb-empty li { margin-bottom: 0.2rem; }
+.eb-section {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+}
+.eb-section-title {
+  margin-bottom: 0.3rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.eb-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.8rem;
+  margin-bottom: 0.3rem;
+}
+.eb-field {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.eb-field--wide { flex: 1 1 100%; }
+/* A section of one field per line: the label on the left, its stepper or
+   checkbox lined up on the right. */
+.eb-section--lines .eb-row { flex-direction: column; align-items: stretch; gap: 0.3rem; }
+.eb-section--lines .eb-field { justify-content: space-between; }
+/* Each checkbox sits centred under the steppers' number fields: the step
+   buttons get a fixed width, so the checkbox's right margin is one button
+   plus the gap plus half the field's leftover width. */
+.eb-section--lines .eb-btn--step { width: 1.4rem; padding-left: 0; padding-right: 0; }
+.eb-section--lines label.eb-field input[type="checkbox"] {
+  order: 1;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-right: calc(1.4rem + 0.2rem + (2.6rem - 0.85rem) / 2);
+}
+.eb-field--wide input[type="text"] { flex: 1; min-width: 0; }
+.eb-field input[type="number"] {
+  width: 3.9rem;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+}
+.eb-field input[type="text"],
+.eb-field select {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+.eb-field select {
+  background: var(--surface-alt);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text);
+  max-width: 9rem;
+}
+.eb-field input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+.eb-stepper { display: inline-flex; align-items: center; gap: 0.2rem; }
+.eb-stepper input[type="number"] {
+  width: 2.6rem;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.eb-stepper input[type="number"]::-webkit-outer-spin-button,
+.eb-stepper input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.eb-btn {
+  padding: 0.22rem 0.55rem;
+  border-width: 1px;
+  border-color: rgba(255,255,255,0.18);
+  border-radius: 6px;
+  font-size: 0.68rem;
+  text-transform: none;
+  letter-spacing: normal;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+.eb-btn:hover { background: rgba(79,215,209,0.18); color: var(--text); border-color: var(--accent-2); }
+.eb-btn--step { padding: 0.15rem 0.4rem; line-height: 1; }
+.eb-btn--on, .eb-btn--on:hover { border-color: var(--accent); background: rgba(255,90,78,0.16); }
+.eb-btn:disabled, .eb-btn:disabled:hover {
+  opacity: 0.4;
+  cursor: default;
+  background: var(--surface-alt);
+  border-color: rgba(255,255,255,0.18);
+}
+
+/* ---------- Transpose box (above the edit box) ---------- */
+.tr-key-line { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin: 0.25rem 0 0.1rem; }
+.tr-key { color: var(--text); font-size: 0.78rem; }
+.tr-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.25rem; margin: 0.4rem 0 0.1rem; }
+.tr-keys .eb-btn { padding: 0.25rem 0; text-align: center; }
+/* Shows/hides the key grid: a chevron pointing right when closed, down when open. */
+.tr-toggle { padding: 0.1rem 0.45rem; font-size: 0.85rem; line-height: 1; }
+.tr-toggle span { display: inline-block; transition: transform 0.15s; }
+.tr-toggle[aria-expanded="true"] span { transform: rotate(90deg); }
+
+/* ---------- Mode / Practice / Links boxes (top of the right column) ---------- */
+.eb-seg.mode-seg { display: flex; flex-wrap: nowrap; margin-top: 0.3rem; }
+.mode-seg .eb-btn { flex: 1; text-align: center; font-size: 0.75rem; padding: 0.3rem 0; }
+.practice-links { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.3rem; }
+.practice-link {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 6px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.practice-link:hover { background: rgba(79,215,209,0.18); border-color: var(--accent-2); }
+.practice-print { width: 100%; }
+.eb-head--toggle { align-items: center; margin-bottom: 0; }
+.links-field { margin-top: 0.3rem; }
+.links-field .eb-label { width: 3.6rem; flex-shrink: 0; }
+.links-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+.tr-acc { margin-top: 0.4rem; }
+.tr-acc .eb-btn { font-size: 0.9rem; line-height: 1; padding: 0.15rem 0.5rem; }
+.eb-btn--primary { border-color: var(--accent-2); }
+
+/* Delete sits on its own under the element's sections, centred. */
+.eb-section--delete .eb-actions { justify-content: center; }
+
+/* Time signature: a button showing the current one, opening a menu of
+   engraved tiles (see openTimeSigMenu). */
+/* A button showing the current choice (time signature, clef, key, song key)
+   and opening its tile menu (see openTileMenu). */
+.menu-button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.5rem 0.15rem 0.3rem; min-height: 1.6rem; }
+.menu-button > span { pointer-events: none; }
+/* The digits' text boxes are far taller than their ink and would reach into
+   the tiles above and below, catching hovers and clicks meant for those; so
+   only the tile itself takes the pointer. */
+.timesig-icon { display: block; overflow: visible; pointer-events: none; }
+.timesig-glyph { font-family: 'MuseJazz', serif; fill: currentColor; }
+.tile-menu { max-width: 300px; }
+.timesig-menu { max-width: 230px; }
+.menu-tile { padding: 0.25rem; align-items: center; }
+.menu-tile-text { font-size: 0.72rem; pointer-events: none; }
+.songkey-menu .menu-tile-text { font-size: 0.8rem; font-weight: 600; }
+/* Clef and key tiles: a bit of staff drawn in the text colour. */
+.tile-icon { display: block; overflow: visible; pointer-events: none; }
+.tile-icon .tile-staff-line { stroke: currentColor; stroke-width: 0.8; opacity: 0.45; }
+.tile-icon .el-notestaff-clef, .tile-icon .el-notestaff-keysig { fill: currentColor; }
+.timesig-custom { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--text-dim); }
+.timesig-custom input[type="number"] { width: 3rem; padding: 0.15rem 0.3rem; font-size: 0.72rem; }
+.timesig-custom select { padding: 0.15rem 0.3rem; font-size: 0.72rem; }
+.eb-btn--danger { border-color: #b0392e; color: #ff9b92; }
+.eb-btn--danger:hover { background: #b0392e; color: #fff; border-color: #b0392e; }
+.eb-seg { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; }
+.eb-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.eb-chords { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.3rem; }
+.eb-chord-bar { display: flex; align-items: flex-start; gap: 0.25rem; }
+.eb-chord-bar-num { flex: 0 0 0.9rem; text-align: right; font-size: 0.62rem; padding-top: 0.35rem; }
+/* Four boxes to a line, in columns; a bar with more wraps onto another line. */
+.eb-chord-boxes { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.2rem; min-height: 1.6rem; }
+.eb-chord-bar input[type="text"] {
+  min-width: 0;
+  width: 100%;
+  padding: 0.2rem 0.1rem;
+  font-size: 0.72rem;
+  text-align: center;
+  border-radius: 6px;
+}
+.eb-bar-step { display: flex; gap: 0.15rem; padding-top: 0.15rem; }
+.eb-bar-step .eb-btn--step { padding: 0.1rem 0.35rem; }
+.eb-bar-step .eb-btn:disabled { opacity: 0.35; cursor: default; }
+.eb-hint { font-size: 0.62rem; line-height: 1.35; margin: 0.15rem 0 0.3rem; }
+.eb-details { margin-top: 0.1rem; }
+.eb-details > summary { cursor: pointer; color: var(--text); margin-bottom: 0.3rem; }
+.eb-check-group { margin-bottom: 0.3rem; }
+.eb-check-group-title { font-size: 0.62rem; margin-bottom: 0.15rem; }
+.eb-check-list { display: flex; flex-wrap: wrap; gap: 0.15rem 0.7rem; }
+.eb-check-list label { display: flex; align-items: center; gap: 0.25rem; }
+.eb-check-list input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+
+@media (max-width: 1000px) {
+  .editor-layout { flex-direction: column; align-items: center; }
+  .editor-palette--side, #glyph-palette { flex-direction: row; flex-wrap: wrap; width: auto; justify-content: center; }
+  .editor-palette--side, #glyph-palette { position: static; max-height: none; overflow: visible; flex-wrap: wrap; }
+  .editor-palette--side .palette-tile { width: auto; }
+  .editor-palette--left { position: static; max-height: none; overflow: visible; width: 100%; max-width: 420px; }
+  .palette-tiles { justify-content: center; }
+  .bars-builder, .rhythm-builder, .staff-builder,
+  .mode-box, .practice-box, .links-box { width: 100%; max-width: 300px; }
+  .page-column { flex: 0 0 auto; width: 100%; max-width: 100%; order: -1; }
+}
+
+/* SVG page + element styling. The page always renders as light "paper"
+   regardless of the app's dark theme, since it doubles as the print output.
+   Lettering uses MuseJazzText (the same face MuseScore's "Jazz" chord-symbol
+   style uses); notation glyphs (notes/rests/accidentals) use the companion
+   MuseJazz music font via standard SMuFL codepoints. */
+.page-bg { fill: #fbfaf6; stroke: rgba(0,0,0,0.12); stroke-width: 1; }
+.page-title-text { fill: #1a1815; font-family: 'MuseJazzText', cursive; letter-spacing: 0.01em; }
+.page-key-text { fill: #55504a; font-family: 'MuseJazzText', cursive; }
+
+.el-selection { fill: rgba(255,90,78,0.08); stroke: #ff5a4e; stroke-width: 1.5; stroke-dasharray: 4 3; pointer-events: none; }
+.el-slot-active { fill: rgba(79,215,209,0.18); stroke: #2aa7a1; stroke-width: 1.2; pointer-events: none; }
+.el-marquee { fill: rgba(255,90,78,0.12); stroke: #ff5a4e; stroke-width: 1; pointer-events: none; }
+
+.el-title-box-fill { fill: #fff; stroke: none; }
+.el-title-box-stroke { fill: none; stroke: #1a1815; stroke-width: 1.5; stroke-linecap: round; }
+.el-title-text { fill: #1a1815; font-family: 'MuseJazzText', cursive; }
+.el-chord-text { fill: #1a1815; font-family: 'MuseJazzText', cursive; }
+.el-text-text { fill: #55504a; font-family: 'MuseJazzText', cursive; }
+.el-text-hit { fill: transparent; cursor: pointer; }
+.el-chord-hit { fill: transparent; cursor: move; }
+.el-chord-hit:hover { fill: rgba(0,0,0,0.05); }
+.el-text-hit:hover { fill: rgba(0,0,0,0.04); }
+
+
+/* Bars are just barlines -- no enclosing box, no top/bottom edge. Each
+   barline is a gently bowed path (not a straight line) for a slightly
+   hand-drawn feel. Chords are typed into the row's chord slots (or dragged
+   on as separate chord elements). */
+.el-row-divider { stroke: #1a1815; stroke-width: 1.1; fill: none; stroke-linecap: round; pointer-events: none; }
+.el-row-hit { fill: transparent; cursor: grab; }
+
+/* A row's typeable chord box. Empty ones get a faint dashed outline so you can
+   see where to click; it's screen-only (hidden in print, below). */
+.el-chord-slot { fill: transparent; stroke: none; cursor: pointer; }
+.el-chord-slot.empty { stroke: rgba(0,0,0,0.22); stroke-width: 1; stroke-dasharray: 3 2; }
+.el-chord-slot:hover { fill: rgba(0,0,0,0.05); }
+/* On the sheet the dashes show only for the selected row (the sidebar
+   bar-builder preview keeps them always). */
+#sheet-svg .el-chord-slot.empty { stroke: none; }
+/* Two-step click: the first click anywhere on a row selects the whole bar
+   field; only then do its individual chord slots take clicks. */
+#sheet-svg .el-group:not(.is-selected) .el-chord-slot { pointer-events: none; }
+#sheet-svg .el-group.is-selected .el-chord-slot.empty { stroke: rgba(0,0,0,0.22); }
+
+.el-repeat-hit { fill: transparent; cursor: grab; }
+.el-repeat-thick { stroke: #1a1815; stroke-width: 3; pointer-events: none; }
+.el-repeat-thin { stroke: #1a1815; stroke-width: 1; pointer-events: none; }
+.el-repeat-dot { fill: #1a1815; pointer-events: none; }
+
+.el-volta-line { stroke: #1a1815; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.el-volta-text { fill: #1a1815; font-family: 'MuseJazzText', cursive; }
+
+.el-arrow-path { stroke: #1a1815; stroke-width: 1.5; fill: none; }
+.el-arrow-hit { stroke: transparent; stroke-width: 14; fill: none; cursor: grab; }
+.el-arrow-handle { fill: #fff; stroke: #1a1815; stroke-width: 1.5; cursor: grab; opacity: 0.55; }
+.el-arrow-bow-handle { fill: #d9d4c8; stroke: #1a1815; stroke-width: 1; cursor: ns-resize; opacity: 0.4; }
+.el-group:hover .el-arrow-handle,
+.el-group:hover .el-arrow-bow-handle { opacity: 1; }
+.el-arrowhead-fill { fill: #1a1815; }
+
+/* Every glyph/lettering text sits on top of its own invisible hit-rect
+   (drawn first, underneath). Without this, hovering the visible ink of the
+   text itself would hit the <text> node instead of the hit-rect beneath
+   it, showing the browser's text-selection cursor instead of the pointer
+   and eating the click -- so these all pass events straight through. */
+.el-glyph-text,
+.page-title-text,
+.page-key-text,
+.el-title-text,
+.el-chord-text,
+.el-text-text,
+.el-volta-text,
+.el-notestaff-clef,
+.el-notestaff-keysig,
+.el-notestaff-timesig,
+.el-notestaff-accidental,
+.el-notestaff-flag,
+.el-notehead-oval {
+  pointer-events: none;
+  user-select: none;
+}
+
+.el-glyph-text { fill: #1a1815; font-family: 'MuseJazz', serif; }
+.el-glyph-hit { fill: transparent; cursor: pointer; }
+.el-glyph-hit:hover { fill: rgba(0,0,0,0.04); }
+
+.el-rhythm-cell-hit { fill: transparent; cursor: pointer; }
+.el-rhythm-cell-hit:hover { fill: rgba(0,0,0,0.04); }
+
+.el-note-hit { fill: transparent; cursor: ns-resize; }
+.el-note-hit:hover { fill: rgba(0,0,0,0.06); }
+
+/* Drawn lines sit above the hit rects, so they must not swallow the mouse. */
+.el-artic-line { stroke: #1a1815; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.el-artic-dot { fill: #1a1815; pointer-events: none; }
+.el-tie { fill: #1a1815; pointer-events: none; }
+
+.el-notegroup-stem { stroke: #1a1815; stroke-width: 1.5; pointer-events: none; }
+.el-notegroup-beam { stroke: #1a1815; pointer-events: none; }
+.el-notehead-slash { stroke: #1a1815; stroke-linecap: round; }
+
+.el-tuplet-bracket { stroke: #1a1815; stroke-width: 1; fill: none; pointer-events: none; }
+.el-tuplet-number { fill: #1a1815; font-family: 'Inter', system-ui, sans-serif; font-size: 0.7em; pointer-events: none; user-select: none; }
+
+.el-staff-line { stroke: #1a1815; stroke-width: 1; pointer-events: none; }
+.el-ledger-line { stroke: #1a1815; stroke-width: 1; pointer-events: none; }
+.el-rhythm-barline { stroke: #1a1815; stroke-width: 1.1; pointer-events: none; }
+.el-staff-barline { stroke: #1a1815; stroke-width: 1.2; pointer-events: none; }
+.el-notestaff-clef,
+.el-notestaff-keysig,
+.el-notestaff-timesig,
+.el-notestaff-accidental,
+.el-notestaff-flag,
+.el-notehead-oval {
+  fill: #1a1815;
+  font-family: 'MuseJazz', serif;
+}
+
+/* Invisible corner hit-zone: the cursor is the only sign it's there. */
+.el-resize-handle { fill: transparent; stroke: none; cursor: nwse-resize; }
+
+.el-move-handle { fill: #fff; stroke: #1a1815; stroke-width: 1.5; cursor: move; opacity: 0; }
+.el-group:hover .el-move-handle { opacity: 0.85; }
+.el-move-handle:hover { opacity: 1; }
+
+
+/* ---------- Note staff editor (modal) ---------- */
+.staff-editor__box {
+  width: 92vw;
+  max-width: 1100px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.staff-editor__box > * { flex-shrink: 0; } /* the shortcut sheet scrolls the box rather than squashing the staff */
+
+.staff-editor__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.staff-editor__head .modal-actions { gap: 0.4rem; }
+.staff-editor__title { margin: 0; font-size: 1.05rem; }
+.staff-editor__info { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.15rem; }
+
+.staff-editor__props { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.2rem; font-size: 0.72rem; }
+.staff-editor-prop { display: flex; align-items: center; gap: 0.35rem; }
+.staff-editor-prop select { padding: 0.15rem 0.3rem; font-size: 0.72rem; }
+.staff-editor-prop input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+.staff-editor__toolbar { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.staff-editor-group {
+  display: flex;
+  gap: 0.2rem;
+  padding-right: 0.35rem;
+  border-right: 1px solid rgba(255,255,255,0.12);
+}
+.staff-editor-group:last-child { border-right: none; }
+
+.staff-editor-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.15rem;
+  min-width: 2.2rem;
+  padding: 0.3rem 0.25rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--surface-alt);
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.staff-editor-btn:hover { border-color: var(--accent-2); background: rgba(79,215,209,0.12); }
+.staff-editor-btn--on { border-color: var(--accent-2); background: rgba(79,215,209,0.24); }
+
+/* The music font's line boxes reach well above the button (into the row
+   above it), so only the button itself takes the pointer. */
+.staff-editor-glyph, .staff-editor-key { pointer-events: none; }
+.staff-editor-glyph {
+  min-height: 1.4rem;
+  display: flex;
+  align-items: flex-end;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.staff-editor-glyph--music { font-family: 'MuseJazz', serif; font-size: 1.35rem; font-weight: normal; }
+.staff-editor-glyph .rhythm-menu-icon .el-artic-line { stroke: var(--text); }
+.staff-editor-glyph .rhythm-menu-icon .el-artic-dot,
+.staff-editor-glyph .rhythm-menu-icon .el-tie { fill: var(--text); }
+.staff-editor-key { font-size: 0.6rem; color: var(--text-dim); white-space: nowrap; }
+
+/* The staff itself, drawn on the same light paper as the page. */
+.staff-editor__page { border-radius: 4px; overflow: hidden; position: relative; }
+/* Typing a chord symbol: a bare field over where the chord is drawn. */
+.staff-editor__page input.staff-editor-chord-input {
+  position: absolute;
+  height: auto;
+  margin: 0;
+  box-shadow: none;
+  min-width: 4em;
+  width: 6em;
+  padding: 0 0.2em;
+  border: 1px solid #1f6fd1;
+  border-radius: 3px;
+  background: #fff;
+  color: #1a1815;
+  font-family: 'MuseJazzText', cursive;
+  line-height: 1.2;
+}
+.staff-editor__page input.staff-editor-chord-input[hidden] { display: none; }
+#staff-editor-svg { display: block; width: 100%; height: auto; }
+.staff-editor-bg { fill: #fbfaf6; }
+
+/* The selected note or rest, in MuseScore's blue. */
+#staff-editor-svg .is-cell-selected { fill: #1f6fd1; }
+#staff-editor-svg .el-notegroup-stem.is-cell-selected { stroke: #1f6fd1; }
+/* What a rhythm bar's editor leaves out (see openStaffEditor). */
+.staff-editor [data-staff-only][hidden] { display: none; }
+.staff-editor-rhythm-sel { fill: rgba(31,111,209,0.14); stroke: rgba(31,111,209,0.5); stroke-width: 1; pointer-events: none; }
+
+.staff-editor__status { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.8rem; color: var(--text-dim); }
+.staff-editor__message { color: var(--accent); }
+
+.staff-editor__help { border-top: 1px solid rgba(255,255,255,0.12); padding-top: 0.6rem; }
+.staff-editor-help-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+.staff-editor-help-list dt { font-family: ui-monospace, monospace; color: var(--accent-2); }
+.staff-editor-help-list dd { margin: 0; color: var(--text-dim); }
+
+/* ---------- Phones ---------- */
+@media (max-width: 700px) {
+  .topbar { padding: 0.6rem 1rem; }
+  .main-nav { padding: 1rem 1rem 0; }
+  .container, .container--full { padding: 1rem; }
+  h1 { margin: 0.4rem 0; }
+
+  /* Five tabs don't fit at the desktop size: shrink them, and let the strip
+     scroll sideways rather than widen the page if they still don't. */
+  .page-tabs { overflow-x: auto; scrollbar-width: none; margin-bottom: 1rem; }
+  .page-tabs::-webkit-scrollbar { display: none; }
+  .page-tabs__tab { flex: 1 0 auto; font-size: 1.05rem; padding: 0.6rem 0.5rem; }
+
+  .setlists-toolbar, .repertoire-toolbar, .leadsheets-toolbar-actions { flex-wrap: wrap; }
+  .setlists-toolbar { gap: 0.5rem; }
+  /* Smaller button text so labels fit on a narrow screen. */
+  button, .button-link { font-size: 0.72rem; letter-spacing: 0.03em; padding: 0.45rem 0.9rem; }
+
+  /* Wide tables keep their desktop column widths and scroll sideways
+     inside their frame rather than squeezing every column to fit. */
+  table.setlist-table { min-width: 900px; }
+  table.setlist-table th:nth-child(6), table.setlist-table td:nth-child(6) { width: 150px; }
+  table.repertoire { min-width: 1100px; }
+  table.repertoire input[type="text"] { min-width: 0; }
+  table.gig-songs-table { min-width: 640px; }
+  table.gig-songs-table th:nth-child(3) { width: 170px; }
+  .gig-songs-view { overflow-x: auto; }
+  /* The gig page sits in a column-flex <form>, whose items would otherwise
+     grow to the table's width and widen the whole page. */
+  .gig-layout { min-width: 0; align-items: stretch; }
+  .top-box__search { width: auto; flex: 1; min-width: 0; }
+  .form-actions__save { flex-wrap: wrap; }
+  .gig-actions-row { flex-wrap: wrap; }
+  .date-picker__trigger { min-width: 0; }
+  .date-picker__panel { width: min(280px, calc(100vw - 2rem)); }
+
+  /* Fieldsets default to min-width: min-content, so the file input would
+     push the gallery wider than the screen. */
+  fieldset { min-width: 0; padding: 1rem; }
+  .gallery-main { min-width: 0; }
+  form.upload { flex-wrap: wrap; }
+  form.upload input[type="file"] { min-width: 0; max-width: 100%; }
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* ---------- Lead sheet viewer (phones) ---------- */
+/* body.lead-practice is set by leadsheet-editor.js in Practice mode, and
+   always below 1200px: the sheet can be seen, transposed and printed, but not
+   edited. body.lead-viewer (below 700px only) adds the phone layout. */
+.only-viewer { display: none; }
+.practice-only { display: none; }
+body.lead-viewer .only-viewer { display: flex; }
+body.lead-viewer .desktop-only { display: none !important; }
+body.lead-practice .practice-only { display: block; }
+body.lead-practice .edit-only { display: none !important; }
+body.lead-practice #sheet-svg { pointer-events: none; }
+
+.viewer-bar { align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
+.viewer-bar__text { min-width: 0; }
+.viewer-bar__title { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; letter-spacing: 0.03em; line-height: 1.1; }
+.viewer-bar__artist { color: var(--text-dim); font-size: 0.9rem; }
+.viewer-share { justify-content: center; margin-top: 1rem; }
+.viewer-share[hidden] { display: none !important; }
+.viewer-share button { width: 100%; max-width: 420px; min-height: 44px; }
+
+/* body.lead-narrow (701-1199px): too narrow for the right column, so there's
+   no Edit mode -- just the left column beside the sheet, with the links box
+   moved to its top (see applyViewerMode). */
+body.lead-narrow .mode-box, body.lead-narrow #glyph-palette { display: none; }
+body.lead-narrow .editor-layout { flex-direction: row; flex-wrap: nowrap; align-items: flex-start; }
+body.lead-narrow .editor-palette--left { position: sticky; max-height: calc(100vh - 2rem); overflow-y: auto; width: 250px; max-width: none; }
+body.lead-narrow .practice-box { width: 100%; max-width: none; }
+body.lead-narrow .page-column { flex: 1 1 auto; width: auto; order: 0; }
+
+body.lead-viewer .editor-layout { padding-bottom: 1rem; gap: 0.75rem; margin-top: 0; }
+body.lead-viewer .editor-palette--left { order: -1; width: 100%; max-width: none; position: static; }
+body.lead-viewer .page-column { order: 0; }
+body.lead-viewer .transpose-box { width: 100%; }
+/* The links box sits under the sheet, above the Share button. */
+body.lead-viewer #glyph-palette { order: 1; width: 100%; max-width: none; }
+body.lead-viewer .practice-box { width: 100%; max-width: none; }
+body.lead-viewer .practice-link { padding: 0.65rem 0.8rem; font-size: 0.95rem; }
+body.lead-viewer .tr-key { font-size: 0.95rem; }
+body.lead-viewer .tr-keys { grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
+body.lead-viewer .transpose-box .eb-btn { min-height: 40px; font-size: 0.9rem; }
+body.lead-viewer .tr-acc .eb-btn { width: 40px; padding: 0; font-size: 1.1rem; }
+
+/* ---------- Print ---------- */
+@media print {
+  .no-print { display: none !important; }
+  .topbar, .main-nav { display: none !important; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  /* Drop the on-screen chrome (container padding, flex layout, palettes)
+     so the sheet is the only thing on the paper and fills the full A4 sheet
+     edge to edge. 296mm rather than 297mm avoids a spurious blank 2nd page
+     from sub-pixel rounding. */
+  main.container { max-width: none; margin: 0; padding: 0; }
+  .editor-layout { display: block; padding-bottom: 0; margin-top: 0; }
+  .page-column { display: block; max-width: none; }
+  .page-wrap {
+    box-shadow: none;
+    border-radius: 0;
+    width: 210mm;
+    max-width: none;
+    height: 296mm;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-after: avoid;
+  }
+  #sheet-svg { width: 100%; height: 100%; aspect-ratio: auto; }
+  .el-resize-handle, .el-move-handle,
+  .el-arrow-handle, .el-arrow-bow-handle, .el-selection, .el-slot-active, .el-marquee { display: none; }
+  .el-chord-slot, .el-chord-slot.empty { fill: none; stroke: none; }
+  /* The on-screen page/title-box tones are a warm off-white "paper" look;
+     on paper that would just waste toner on a tinted fill, so print pure
+     white for both instead. */
+  .page-bg, .el-title-box-fill { fill: #fff; }
+  .page-bg { stroke: none; }
+  @page { size: A4 portrait; margin: 0; }
+}
+
+/* ---------- Page transitions ---------- */
+/* Cross-fade between pages instead of flashing blank, with the header and
+   nav held in place. Browsers without support navigate as before. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  .topbar { view-transition-name: topbar; }
+  .main-nav { view-transition-name: main-nav; }
+}
+
+/* ---------- leadsheets.dk ---------- */
+.topbar__account {
+  margin-left: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+.topbar__role {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.topbar__account button { padding: 0.3rem 0.8rem; font-size: 0.7rem; }
+
+.new-sheet-form { max-width: 420px; margin: 1.25rem 0 2.5rem; }
+.drafts h2 { margin-bottom: 0; }
+
+/* Viewers can't edit archive sheets: no mode switch, Save or Delete. */
+body.ls-readonly .mode-box,
+body.ls-readonly #save-btn,
+body.ls-readonly #delete-btn { display: none !important; }
