@@ -13,5 +13,6 @@
   const initialSheet = {{ sheet_json|safe }};
   const leadsheetId = "{{ sheet.id }}";
 </script>
+<script src="/static/user-store.js?v={{ static_version }}"></script>
 <script src="/static/leadsheet-editor.js?v={{ static_version }}"></script>
 {% endblock %}

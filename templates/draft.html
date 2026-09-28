@@ -2,8 +2,17 @@
 {% block title %}Draft{% endblock %}
 {% block container_class %}container--full{% endblock %}
 {% block content %}
-<p class="no-print"><a class="back" href="/new">&larr; Create New</a></p>
-<p id="draft-missing" class="muted" hidden>This draft isn't saved in this browser. Drafts live only in the browser they were made in.</p>
+<p class="no-print">
+  <a class="back" href="/new">&larr; Your Sheets</a>
+  <span id="draft-based-on" class="muted draft-based-on" hidden>&middot; Version of <a id="draft-based-on-link"></a></span>
+</p>
+<p id="draft-missing" class="muted" hidden>
+  {%- if request.session.get('role') == 'admin' -%}
+  This sheet doesn't exist (any more).
+  {%- else -%}
+  This sheet isn't saved in this browser. Your sheets live only in the browser they were made in (or one you've imported a backup into).
+  {%- endif -%}
+</p>
 
 <div id="draft-editor">
 {% include "_leadsheet_editor_body.html" %}
@@ -11,23 +20,42 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/drafts.js?v={{ static_version }}"></script>
+<script src="/static/user-store.js?v={{ static_version }}"></script>
 <script>
-  // The draft's id is in the URL's #fragment; its sheet is in localStorage.
-  // #new opens a new sheet that isn't stored until its first save.
+  // The sheet's id is in the URL's #fragment; the sheet is in the user's
+  // store (static/user-store.js). #new opens a new sheet that isn't stored until its first save.
+  // The editor reads these two globals once its script loads.
   window.LEADSHEET_CONFIG = {{ config_json|safe }};
-  const hashId = decodeURIComponent(location.hash.slice(1));
-  const initialSheet = hashId === 'new'
-    ? window.leadsheetDrafts.newSheet('Title', 'Artist')
-    : hashId ? window.leadsheetDrafts.get(hashId) : null;
-  const leadsheetId = initialSheet ? initialSheet.id : hashId;
-  if (initialSheet) {
+  // Following a link to another of the user's sheets only changes the
+  // #fragment, so load that sheet afresh. (Save rewrites #new with
+  // replaceState, which fires no hashchange.)
+  window.addEventListener('hashchange', () => location.reload());
+  let initialSheet = null;
+  let leadsheetId = '';
+  (async function () {
+    const store = window.leadsheetStore;
+    await store.forgetLostOriginals({{ archive_ids_json|safe }});
+    const hashId = decodeURIComponent(location.hash.slice(1));
+    initialSheet = hashId === 'new'
+      ? { id: store.newId('sheets'), title: 'Title', artist: 'Artist', key: '', elements: [] }
+      : hashId ? await store.get('sheets', hashId) : null;
+    if (!initialSheet) {
+      document.getElementById('draft-editor').hidden = true;
+      document.getElementById('draft-missing').hidden = false;
+      return;
+    }
+    leadsheetId = initialSheet.id;
+    const basedOn = initialSheet.based_on;
+    if (basedOn) {
+      const own = basedOn.source === 'local' && await store.get('sheets', basedOn.id);
+      const link = document.getElementById('draft-based-on-link');
+      link.href = own ? `/draft#${encodeURIComponent(basedOn.id)}` : `/sheets/${encodeURIComponent(basedOn.id)}`;
+      link.textContent = (own ? own.title : basedOn.title) || 'the original';
+      document.getElementById('draft-based-on').hidden = false;
+    }
     const editorScript = document.createElement('script');
     editorScript.src = '/static/leadsheet-editor.js?v={{ static_version }}';
     document.body.appendChild(editorScript);
-  } else {
-    document.getElementById('draft-editor').hidden = true;
-    document.getElementById('draft-missing').hidden = false;
-  }
+  })();
 </script>
 {% endblock %}

@@ -11,6 +11,13 @@
 
 <div class="editor-layout">
   <div id="left-column" class="editor-palette editor-palette--left no-print">
+    <div id="place-box" class="edit-box place-box edit-only">
+      <div class="eb-head"><span class="eb-head-title">Saved in</span></div>
+      <span class="eb-seg mode-seg">
+        <button type="button" class="eb-btn" data-place="archive" title="The archive: everyone can see it">Archive</button>
+        <button type="button" class="eb-btn" data-place="draft" title="Your drafts: only you can see them">Draft</button>
+      </span>
+    </div>
     <div class="edit-box transpose-box">
       <div class="eb-head eb-head--toggle">
         <span class="eb-head-title">Transpose</span>
@@ -84,6 +91,11 @@
     <div class="edit-box practice-box practice-only">
       <div class="eb-head"><span class="eb-head-title">Links</span></div>
       <div id="practice-links" class="practice-links"></div>
+      <div id="my-versions" class="my-versions" hidden>
+        <div id="my-versions-label" class="eb-label">Versions</div>
+        <div id="my-versions-list" class="practice-links"></div>
+        <button type="button" id="make-version-btn" class="btn-small" title="Make your own version of this sheet to change as you like.">Customize</button>
+      </div>
     </div>
 
     <div id="links-box" class="edit-box links-box edit-only">
@@ -147,6 +159,7 @@
 <div id="confirm-modal" class="modal-overlay no-print" hidden>
   <div class="modal-box modal-box--centered modal-box--confirm">
     <p id="confirm-text">Delete this lead sheet?</p>
+    <p id="confirm-detail" class="muted confirm-detail" hidden></p>
     <div class="modal-actions">
       <button type="button" id="confirm-cancel" class="btn-small">Cancel</button>
       <button type="button" id="confirm-ok" class="danger btn-small">Delete</button>

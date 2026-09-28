@@ -6,10 +6,11 @@
  */
 (function () {
   // Set by the page (sheet.html / draft.html): whether this viewer may edit,
-  // and where Save and Delete go -- the archive on the server, or a draft
-  // kept in this browser (static/drafts.js).
+  // where Save and Delete go -- the archive, or the user's own sheets
+  // (static/user-store.js) -- and whether an archive sheet
+  // offers "Make my version".
   const config = Object.assign(
-    { canEdit: false, storage: 'server', saveUrl: '', deleteUrl: '', afterDeleteUrl: '/sheets' },
+    { canEdit: false, canCopy: false, storage: 'server', saveUrl: '', deleteUrl: '', afterDeleteUrl: '/sheets' },
     window.LEADSHEET_CONFIG || {},
   );
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -5097,11 +5098,12 @@
     status.classList.remove('save-status--error');
     try {
       if (config.storage === 'local') {
-        window.leadsheetDrafts.save(leadsheetId, model);
+        await window.leadsheetStore.save('sheets', leadsheetId, model);
         // A new sheet opens at #new; once stored, reloads should find it.
         history.replaceState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(leadsheetId)}`);
         dirty = false;
         updateSaveStatus();
+        renderVersions();
         return;
       }
       const resp = await fetch(config.saveUrl, {
@@ -5114,19 +5116,10 @@
         status.classList.add('save-status--error');
         return;
       }
-      if (config.isNew) {
-        // The first save created the sheet: from now on, save to its own URL.
-        const sheet = await resp.json();
-        config.isNew = false;
-        config.saveUrl = `/sheets/${sheet.id}`;
-        config.deleteUrl = `/sheets/${sheet.id}/delete`;
-        config.afterDeleteUrl = '/sheets';
-        history.replaceState(null, '', `/sheets/${encodeURIComponent(sheet.id)}${location.search}`);
-      }
       dirty = false;
       updateSaveStatus();
     } catch (err) {
-      status.textContent = config.storage === 'local'
+      status.textContent = config.storage === 'local' && !window.leadsheetStore.onServer
         ? 'Couldn’t save in this browser (storage full or blocked).'
         : 'Failed to save.';
       status.classList.add('save-status--error');
@@ -5168,6 +5161,76 @@
       box.appendChild(mk('div', 'eb-hint', viewerMQ.matches ? 'No links yet.' : 'Add links in Edit mode.'));
     }
   }
+  /* ---------- versions ---------- */
+  // Customize makes a version of a sheet: a copy among the user's own, with
+  // `based_on` naming its original -- an archive sheet, or one of the user's
+  // own (source 'local'). A version's own versions share its original, so a
+  // family is always one original plus its versions. Under the links, a
+  // sheet in a family lists it: the original first, then the versions, the
+  // one on screen ticked.
+  const store = window.leadsheetStore;
+  const isLocal = config.storage === 'local';
+  const canCustomize = !!store && (config.canCopy || isLocal);
+  function familyOriginal() {
+    if (!isLocal) return { id: leadsheetId, source: 'archive', title: model.title, here: true };
+    if (model.based_on) return Object.assign({ source: 'archive' }, model.based_on);
+    return { id: leadsheetId, source: 'local', title: model.title, here: true };
+  }
+  async function renderVersions() {
+    if (!canCustomize) return;
+    const original = familyOriginal();
+    const sheets = await store.list('sheets');
+    const versions = sheets.filter(s => s.based_on && s.based_on.id === original.id
+      && (s.based_on.source || 'archive') === original.source);
+    const list = document.getElementById('my-versions-list');
+    list.textContent = '';
+    if (versions.length) {
+      // One of the user's own sheets is listed under its current title.
+      const own = original.source === 'local' && !original.here && sheets.find(s => s.id === original.id);
+      const originalTitle = (own ? own.title : original.title) || 'Untitled';
+      const originalHref = original.source === 'local'
+        ? `/draft#${encodeURIComponent(original.id)}`
+        : `/sheets/${encodeURIComponent(original.id)}`;
+      const links = [[`${originalTitle} (original)`, originalHref, !!original.here]]
+        .concat(versions.map(v => [v.title, `/draft#${encodeURIComponent(v.id)}`, v.id === leadsheetId]));
+      links.forEach(([title, href, isCurrent]) => {
+        const a = mk('a', isCurrent ? 'practice-link practice-link--current' : 'practice-link', title);
+        a.href = href;
+        list.appendChild(a);
+      });
+    }
+    // A new sheet that hasn't been saved yet can't be an original.
+    const saved = !isLocal || sheets.some(s => s.id === leadsheetId);
+    document.getElementById('my-versions-label').hidden = !versions.length;
+    document.getElementById('make-version-btn').hidden = !saved;
+    document.getElementById('my-versions').hidden = !versions.length && !saved;
+  }
+  if (canCustomize) {
+    document.getElementById('make-version-btn').addEventListener('click', async () => {
+      const original = familyOriginal();
+      const copy = JSON.parse(JSON.stringify(model));
+      delete copy.id;
+      delete copy.created_at;
+      delete copy.updated_at;
+      copy.based_on = { id: original.id, title: original.title, source: original.source };
+      const id = store.newId('sheets');
+      try {
+        await store.save('sheets', id, copy);
+      } catch (err) {
+        alert(store.onServer
+          ? 'Couldn’t save your version.'
+          : 'Couldn’t save your version in this browser (storage full or blocked).');
+        return;
+      }
+      location.href = `/draft#${encodeURIComponent(id)}`;
+    });
+  }
+  // Coming Back from another version can restore this page from the
+  // back/forward cache, so the list is redrawn on every pageshow too. (On the
+  // draft page this script loads after pageshow, hence the direct call.)
+  renderVersions();
+  window.addEventListener('pageshow', e => { if (e.persisted) renderVersions(); });
+
   // A box whose chevron (in its title line) shows and hides everything under
   // the title. The Links box starts closed, the Transpose box open.
   function wireBoxToggle(toggleId, bodyId, name) {
@@ -5436,26 +5499,101 @@
   });
   applyViewerMode();
 
+  // The page's own confirm dialog: resolves true on OK, false on Cancel, a
+  // click outside the box or Esc. `detail` is a quieter line under the
+  // question; `danger` colours the OK button red.
   const confirmModal = document.getElementById('confirm-modal');
-  document.getElementById('delete-btn').addEventListener('click', () => {
-    document.getElementById('confirm-text').textContent = `Delete "${model.title.trim() || 'Untitled'}"?`;
+  const confirmOk = document.getElementById('confirm-ok');
+  let confirmAnswer = null;
+  function askConfirm(text, okLabel, { detail = '', danger = false } = {}) {
+    document.getElementById('confirm-text').textContent = text;
+    const detailEl = document.getElementById('confirm-detail');
+    detailEl.textContent = detail;
+    detailEl.hidden = !detail;
+    confirmOk.textContent = okLabel;
+    confirmOk.classList.toggle('danger', danger);
     confirmModal.hidden = false;
-  });
-  confirmModal.addEventListener('click', e => { if (e.target === confirmModal) confirmModal.hidden = true; });
-  document.getElementById('confirm-cancel').addEventListener('click', () => { confirmModal.hidden = true; });
-  document.getElementById('confirm-ok').addEventListener('click', async () => {
+    confirmOk.focus();
+    return new Promise(resolve => { confirmAnswer = resolve; });
+  }
+  function answerConfirm(ok) {
     confirmModal.hidden = true;
+    if (confirmAnswer) confirmAnswer(ok);
+    confirmAnswer = null;
+  }
+  confirmModal.addEventListener('click', e => { if (e.target === confirmModal) answerConfirm(false); });
+  document.getElementById('confirm-cancel').addEventListener('click', () => answerConfirm(false));
+  confirmOk.addEventListener('click', () => answerConfirm(true));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !confirmModal.hidden) answerConfirm(false);
+  });
+
+  document.getElementById('delete-btn').addEventListener('click', async () => {
+    if (!await askConfirm(`Delete "${model.title.trim() || 'Untitled'}"?`, 'Delete', { danger: true })) return;
     if (config.storage === 'local') {
-      window.leadsheetDrafts.remove(leadsheetId);
+      await window.leadsheetStore.remove('sheets', leadsheetId);
       dirty = false;
       location.href = config.afterDeleteUrl;
       return;
     }
-    if (config.isNew) { dirty = false; location.href = config.afterDeleteUrl; return; } // never saved
     const resp = await fetch(config.deleteUrl, { method: 'POST' });
     if (resp.ok) { dirty = false; location.href = config.afterDeleteUrl; }
     else alert('Failed to delete: ' + await resp.text());
   });
+
+  /* ---------- archive or draft ---------- */
+  // The admin's Saved in box, at the top of the left column in Edit mode,
+  // shows where the sheet lives. Sheets go one way only: a draft moves into
+  // the archive (with what's on screen, saved or not), and from then on is
+  // edited or deleted there. A version of an archive sheet replaces its
+  // original; any other draft becomes a new archive sheet, and its own
+  // versions become versions of that.
+  const placeBox = document.getElementById('place-box');
+  if (!config.canMove) {
+    placeBox.remove();
+  } else {
+    const place = isLocal ? 'draft' : 'archive';
+    placeBox.querySelectorAll('[data-place]').forEach(b => {
+      b.classList.toggle('eb-btn--on', b.dataset.place === place);
+      if (!isLocal && b.dataset.place === 'draft') {
+        b.disabled = true;
+        b.title = 'An archive sheet stays in the archive: edit or delete it here.';
+      }
+    });
+    if (isLocal) placeBox.querySelector('[data-place=archive]').addEventListener('click', moveToArchive);
+  }
+
+  async function moveToArchive() {
+    const original = model.based_on && (model.based_on.source || 'archive') === 'archive' ? model.based_on : null;
+    const ok = original
+      ? await askConfirm(`Replace "${original.title || 'the original'}" with this version?`, 'Replace', {
+        detail: 'This will overwrite the current version in the archive and cannot be undone.',
+        danger: true,
+      })
+      : await askConfirm(`Add "${model.title.trim() || 'Untitled'}" to the archive?`, 'Add', {
+        detail: 'Once added it will be publicly available. It can then only be edited or deleted, not returned to drafts.',
+      });
+    if (!ok) return;
+    const resp = await fetch(original ? `/sheets/${encodeURIComponent(original.id)}` : '/sheets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(model),
+    });
+    if (!resp.ok) {
+      alert('Couldn’t move it to the archive: ' + ((await resp.text()) || resp.status));
+      return;
+    }
+    const archiveId = original ? original.id : (await resp.json()).id;
+    // This draft's own versions follow it into the archive's family.
+    for (const v of await store.list('sheets')) {
+      if (!v.based_on || v.based_on.source !== 'local' || v.based_on.id !== leadsheetId) continue;
+      const doc = await store.get('sheets', v.id);
+      if (doc) await store.save('sheets', v.id, Object.assign(doc, { based_on: { id: archiveId, title: model.title, source: 'archive' } }));
+    }
+    await store.remove('sheets', leadsheetId);
+    dirty = false;
+    location.href = `/sheets/${encodeURIComponent(archiveId)}?mode=edit`;
+  }
 
   /* ---------- setlist PDF ---------- */
   // The setlist page (setlist.html) loads this script with the editor's
@@ -5463,12 +5601,23 @@
   // a page listing it, then every sheet in order. `plan` is built on that
   // page: each sheet plus how far to transpose it and whether to spell it
   // with flats.
-  // The setlist as a page of its own, drawn on the sheet like a lead sheet's
-  // header: "Treasure (C#m)" per song in the title font, one column per set
-  // (at most three). The text is sized as if there were three columns
-  // whatever the count, so one or two sets don't get huge type, and shrinks
-  // further only when a set is too long for the page.
-  function renderSetlistSvg(sets, subtitle) {
+  // How many sets go on each setlist page: at most three columns a page,
+  // shared out as evenly as possible with the fuller pages first -- 4 sets
+  // are 2+2, 5 are 3+2, 6 are 3+3, 7 are 3+2+2, 8 are 3+3+2.
+  function setlistPageCounts(setCount) {
+    const pages = Math.ceil(setCount / 3);
+    const base = Math.floor(setCount / pages);
+    const extra = setCount % pages;
+    return Array.from({ length: pages }, (_, i) => base + (i < extra ? 1 : 0));
+  }
+
+  // One page of the setlist, drawn on the sheet like a lead sheet's header:
+  // "Treasure (C#m)" per song in the title font, one column per set -- the
+  // `count` sets from `first` on. The text is sized over all the sets, as if
+  // there were three columns whatever the count, so every page matches, one
+  // or two sets don't get huge type, and it shrinks further only when a set
+  // is too long for the page.
+  function renderSetlistSvg(sets, subtitle, first = 0, count = Math.min(sets.length, 3)) {
     const svg = document.getElementById('sheet-svg');
     svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -5478,13 +5627,13 @@
       svg.appendChild(svgText(subtitle, PAGE_W / 2, PAGE_MARGIN + 22, { cls: 'page-key-text', anchor: 'middle', size: 13 }));
     }
 
-    const cols = sets.slice(0, 3);
-    const labelled = cols.length > 1;
+    const cols = sets.slice(first, first + count);
+    const labelled = sets.length > 1;
     const top = PAGE_MARGIN + 70;
     const bottom = PAGE_H - PAGE_MARGIN;
     const colW = (PAGE_W - 2 * PAGE_MARGIN) / cols.length;
     const gap = 24;
-    const rows = Math.max(...cols.map(c => c.length)) + (labelled ? 1.5 : 0);
+    const rows = Math.max(...sets.map(c => c.length)) + (labelled ? 1.5 : 0);
     // After the title, in lighter grey: "(Ab   1.5 ↑)" -- the key, and how
     // far it's moved with a gap as wide as " - " before it.
     const keyParts = song => !song.key ? [] : song.amount ? [` (${song.key}`, `${song.amount})`] : [` (${song.key})`];
@@ -5492,7 +5641,7 @@
     const lineWidth = song => measureTextWidth(song.title, 100) / 100
       + keyParts(song).reduce((w, part) => w + measureTextWidth(part, 100) / 100, 0)
       + (song.key && song.amount ? gapW : 0);
-    const widest = Math.max(...cols.flat().map(lineWidth));
+    const widest = Math.max(...sets.flat().map(lineWidth));
     const threeColW = (PAGE_W - 2 * PAGE_MARGIN) / 3;
     const lineH = Math.min(44, (bottom - top) / rows);
     const size = Math.min(26, (threeColW - gap) / widest, lineH * 0.62);
@@ -5501,7 +5650,7 @@
       const x = PAGE_MARGIN + i * colW + gap / 2;
       let y = top;
       if (labelled) {
-        svg.appendChild(svgText(`Set ${i + 1}`, x, y, { cls: 'page-key-text', size: 15 }));
+        svg.appendChild(svgText(`Set ${first + i + 1}`, x, y, { cls: 'page-key-text', size: 15 }));
         y += lineH * 1.5;
       }
       col.forEach(song => {
@@ -5523,8 +5672,12 @@
     await Promise.all(['MuseJazzText', 'MuseJazz'].map(f => document.fonts.load(`20px ${f}`))).catch(() => {});
     const jpegs = [];
     if (plan.sets && plan.sets.length) {
-      renderSetlistSvg(plan.sets, plan.subtitle || '');
-      jpegs.push(await sheetJpegBytes());
+      let first = 0;
+      for (const count of setlistPageCounts(plan.sets.length)) {
+        renderSetlistSvg(plan.sets, plan.subtitle || '', first, count);
+        jpegs.push(await sheetJpegBytes());
+        first += count;
+      }
     }
     for (let i = 0; i < plan.pages.length; i++) {
       const page = plan.pages[i];

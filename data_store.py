@@ -1,6 +1,7 @@
 """Flat-file JSON storage on the server's persistent disk.
 
-DATA_DIR holds everything the app writes (today just leadsheets/<id>.json).
+DATA_DIR holds everything the app writes: the archive (leadsheets/<id>.json)
+and the admin's own sheets and setlists (users/admin/<kind>/<id>.json).
 
 Production: DATA_DIR=/data, bind-mounted from /srv/leadsheets/data on the
 server, so it survives redeploys and is covered by the nightly backup.

@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 import sheets
+import user_store
 
 
 def _secrets(name: str) -> list[str]:
@@ -170,26 +171,6 @@ async def sheets_create(request: Request):
         return Response(content=str(exc), status_code=400)
 
 
-@app.get("/sheets/new", response_class=HTMLResponse)
-async def sheet_new_page(request: Request):
-    # A new sheet opens in the editor unsaved; its first Save POSTs to
-    # /sheets, which creates it in the archive.
-    require_admin(request)
-    sheet = {"id": "", "title": "Title", "artist": "Artist", "key": "", "elements": []}
-    config = {
-        "canEdit": True,
-        "storage": "server",
-        "isNew": True,
-        "saveUrl": "/sheets",
-        "afterDeleteUrl": "/new",
-    }
-    return templates.TemplateResponse(
-        request,
-        "sheet.html",
-        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config)},
-    )
-
-
 @app.get("/sheets/{leadsheet_id}", response_class=HTMLResponse)
 async def sheet_page(request: Request, leadsheet_id: str):
     try:
@@ -199,6 +180,11 @@ async def sheet_page(request: Request, leadsheet_id: str):
     admin = is_admin(request)
     config = {
         "canEdit": admin,
+        # Anyone may copy an archive sheet into their own version (kept in
+        # their browser, see static/user-store.js).
+        "canCopy": True,
+        # The admin sees where it lives (the Saved in box).
+        "canMove": admin,
         "storage": "server",
         "saveUrl": f"/sheets/{sheet['id']}",
         "deleteUrl": f"/sheets/{sheet['id']}/delete",
@@ -245,8 +231,9 @@ async def sheet_delete(leadsheet_id: str, request: Request):
 
 @app.get("/setlist", response_class=HTMLResponse)
 async def setlist_page(request: Request):
-    # The setlist itself lives in the browser (localStorage); the page gets
-    # the archive to pick from and fetches each sheet when making the PDF.
+    # The setlists live in the browser (localStorage), and so do the user's
+    # own sheets; the page gets the archive to pick from and fetches each
+    # archive sheet when making the PDF.
     catalog = [
         {"id": s["id"], "title": s["title"], "artist": s.get("artist", ""), "key": s.get("key", "")}
         for s in sheets.list_leadsheets()
@@ -261,15 +248,72 @@ async def setlist_page(request: Request):
 
 @app.get("/new", response_class=HTMLResponse)
 async def new_page(request: Request):
-    return templates.TemplateResponse(request, "new.html", {"admin": is_admin(request)})
+    # The archive's ids, so versions whose original was deleted from it turn
+    # into sheets of their own.
+    archive_ids = [s["id"] for s in sheets.list_leadsheets()]
+    return templates.TemplateResponse(request, "new.html", {"archive_ids_json": _json(archive_ids)})
 
 
 @app.get("/draft", response_class=HTMLResponse)
 async def draft_page(request: Request):
-    # The draft itself lives in the browser (localStorage); the page loads it
+    # The sheet itself lives in the browser (localStorage); the page loads it
     # from the id in the URL's #fragment.
-    config = {"canEdit": True, "storage": "local", "afterDeleteUrl": "/new"}
-    return templates.TemplateResponse(request, "draft.html", {"config_json": _json(config)})
+    # The admin may move it into the archive (a version replaces its original).
+    config = {"canEdit": True, "canMove": is_admin(request), "storage": "local", "afterDeleteUrl": "/new"}
+    archive_ids = [s["id"] for s in sheets.list_leadsheets()]
+    return templates.TemplateResponse(
+        request, "draft.html", {"config_json": _json(config), "archive_ids_json": _json(archive_ids)}
+    )
+
+
+# ── The admin's own sheets and setlists ───────────────────────────────
+# Viewers keep theirs in the browser; the admin's are kept here, so they're
+# the same on every device. static/user-store.js calls these.
+ADMIN_USER = "admin"
+
+
+@app.get("/me/{kind}")
+async def me_list(kind: str, request: Request):
+    require_admin(request)
+    try:
+        docs = user_store.list_docs(ADMIN_USER, kind)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return JSONResponse(docs, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/me/{kind}/{doc_id}")
+async def me_get(kind: str, doc_id: str, request: Request):
+    require_admin(request)
+    try:
+        doc = user_store.get_doc(ADMIN_USER, kind, doc_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return JSONResponse(doc, headers={"Cache-Control": "no-store"})
+
+
+@app.put("/me/{kind}/{doc_id}")
+async def me_save(kind: str, doc_id: str, request: Request):
+    require_admin(request)
+    try:
+        doc = await _read_json(request)
+        return user_store.save_doc(
+            ADMIN_USER, kind, doc_id, doc, keep_times=request.query_params.get("keep_times") == "1"
+        )
+    except KeyError:
+        raise HTTPException(status_code=404)
+    except (ValueError, TypeError) as exc:
+        return Response(content=str(exc), status_code=400)
+
+
+@app.delete("/me/{kind}/{doc_id}")
+async def me_delete(kind: str, doc_id: str, request: Request):
+    require_admin(request)
+    try:
+        user_store.delete_doc(ADMIN_USER, kind, doc_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return Response(status_code=204)
 
 
 # ── Read API for other sites (e.g. the James Band intern app) ─────────

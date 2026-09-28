@@ -14,6 +14,10 @@
 
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}" />
   {% block extra_style %}{% endblock %}
+  {% if request.session.get('role') == 'admin' %}
+  {# The admin's own sheets and setlists live on the server (static/user-store.js). #}
+  <script>window.LEADSHEETS_SERVER_STORE = true;</script>
+  {% endif %}
 
   {# Fetch a tab's page on hover so the click lands instantly (Chrome/Edge). #}
   <script type="speculationrules">

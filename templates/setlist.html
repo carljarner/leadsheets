@@ -2,7 +2,16 @@
 {% block title %}Setlist{% endblock %}
 {% block container_class %}container--full{% endblock %}
 {% block content %}
-<h1>Setlist</h1>
+<div class="setlists-toolbar">
+  <h1>Setlist</h1>
+  <div class="setlist-menu">
+    <button type="button" id="setlist-menu-btn" class="btn-small setlist-menu__button" aria-haspopup="menu" aria-expanded="false" title="Your setlists">
+      <span id="setlist-menu-label" class="setlist-menu__label"></span>
+      <span class="setlist-menu__caret" aria-hidden="true">▾</span>
+    </button>
+    <ul id="setlist-menu-list" class="setlist-menu__list" role="menu" hidden></ul>
+  </div>
+</div>
 
 <div class="setlist-layout">
   <div class="setlist-layout__side">
@@ -13,13 +22,44 @@
       </div>
       <ul id="sheet-pick-list" class="pick-list"></ul>
     </div>
+
+    {% if request.session.get('role') != 'admin' %}
+    <div class="top-box top-box--backup">
+      <h2>Backup</h2>
+      <p class="muted">Setlists and your own sheets are saved in this browser only. Export a backup to keep them safe or to move them to another device.</p>
+      <div class="local-note__actions">
+        <button type="button" id="backup-export" class="btn-small">Export backup</button>
+        <button type="button" id="backup-import" class="btn-small">Import</button>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="setlist-layout__main">
-    <label class="setlist-name">
-      <span class="muted">Name (shown on the setlist page)</span>
-      <input type="text" id="setlist-name" placeholder="e.g. Bryllup 29/8" autocomplete="off" />
-    </label>
+    <div class="setlist-name">
+      <div class="setlist-name__row">
+        <input type="text" id="setlist-name" placeholder="Untitled setlist" aria-label="Setlist name" autocomplete="off" />
+        {# The date picker from the James Band intern app's gig form. #}
+        <div class="date-picker setlist-date" id="date-picker">
+          <button type="button" class="date-picker__trigger" id="date-trigger" title="The setlist's date">
+            <span id="date-display" class="muted">No date</span>
+          </button>
+          <div class="date-picker__panel" id="date-panel" hidden>
+            <div class="date-picker__header">
+              <button type="button" class="date-picker__nav" id="date-prev" aria-label="Previous month">&lsaquo;</button>
+              <span class="date-picker__month" id="date-month"></span>
+              <button type="button" class="date-picker__nav" id="date-next" aria-label="Next month">&rsaquo;</button>
+            </div>
+            <div class="date-picker__weekdays">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div class="date-picker__grid" id="date-grid"></div>
+            <button type="button" class="btn-small date-picker__clear" id="date-clear" hidden>Clear date</button>
+          </div>
+        </div>
+        <button type="button" id="setlist-duplicate" class="btn-small" title="Make a copy of this setlist">Duplicate</button>
+      </div>
+    </div>
 
     <div class="setlist-wrap">
       <table class="setlist-table">
@@ -47,12 +87,24 @@
     </div>
 
     <div class="form-actions setlist-actions">
-      <button type="button" id="setlist-clear" class="btn-small">Clear</button>
+      <button type="button" id="setlist-delete" class="btn-small danger">Delete</button>
       <button type="button" id="bundle-share" class="btn-small">Share</button>
       <div class="bundle-actions">
         <span id="bundle-status" class="save-status"></span>
         <button type="button" id="bundle-download" class="primary btn-small">PDF</button>
       </div>
+    </div>
+  </div>
+</div>
+
+{# Styled like the editor's confirm dialog; its own ids, since the editor's
+   markup (with the editor's dialog) is on this page too, off screen. #}
+<div id="setlist-confirm" class="modal-overlay" hidden>
+  <div class="modal-box modal-box--centered modal-box--confirm">
+    <p id="setlist-confirm-text"></p>
+    <div class="modal-actions">
+      <button type="button" id="setlist-confirm-cancel" class="btn-small">Cancel</button>
+      <button type="button" id="setlist-confirm-ok" class="danger btn-small">Delete</button>
     </div>
   </div>
 </div>
@@ -77,11 +129,18 @@
   const initialSheet = {{ sheet_json|safe }};
   const leadsheetId = '';
 </script>
+<script src="/static/user-store.js?v={{ static_version }}"></script>
 <script src="/static/leadsheet-editor.js?v={{ static_version }}"></script>
 <script>
-  (function () {
+  (async function () {
+    const store = window.leadsheetStore;
     const archive = {{ sheets_json|safe }};
     const byId = new Map(archive.map(s => [s.id, s]));
+    // The user's own sheets (drafts and versions): in this browser, or on the
+    // server for the admin.
+    await store.forgetLostOriginals(archive.map(s => s.id));
+    const mine = await store.list('sheets');
+    const mineById = new Map(mine.map(s => [s.id, s]));
 
     /* ---------- Keys ---------- */
     // The same fixed spellings as chords.py: one per pitch class (C = 0).
@@ -115,55 +174,316 @@
       return k ? keyList(k.minor)[k.pc] : '';
     }
 
-    /* ---------- State, kept in this browser ---------- */
-    // Rows are { type: 'song', id, key } or { type: 'break' }; `uid` is only
-    // for the page and isn't stored.
-    const STORE_KEY = 'leadsheets:setlist';
+    /* ---------- State, kept by static/user-store.js ---------- */
+    // A setlist is { id, name, rows }. Rows are { type: 'song', id, key },
+    // plus source: 'local' for one of the user's own sheets, or
+    // { type: 'break' }. Setlists are kept by static/user-store.js; `uid` is
+    // only for the page and isn't stored.
+    const CURRENT_KEY = 'leadsheets:setlist-current';
     let uidCounter = 0;
     function nextUid() { return 'row-' + (uidCounter++); }
+    function sheetFor(row) { return row.source === 'local' ? mineById.get(row.id) : byId.get(row.id); }
+    function rowKey(row) { return `${row.source || 'archive'}:${row.id}`; }
 
-    function load() {
-      try {
-        const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-        if (saved && Array.isArray(saved.rows)) return saved;
-      } catch (err) { /* nothing saved, or storage blocked */ }
-      return { name: '', rows: [] };
+    // The setlist on screen; `stored` is false until its first save, so
+    // opening the page or pressing New doesn't leave empty setlists behind.
+    let current = null;
+    let songs = [];
+    const nameInput = document.getElementById('setlist-name');
+
+    function blankSetlist() {
+      return { id: store.newId('setlists'), name: '', date: '', rows: [], stored: false };
     }
-    function save() {
+
+    /* ---------- The setlist's date ---------- */
+    // The James Band intern app's date picker (its gig form), in English and
+    // with a way back to no date. Dates are stored as "YYYY-MM-DD".
+    const datePicker = (function () {
+      const picker = document.getElementById('date-picker');
+      const trigger = document.getElementById('date-trigger');
+      const display = document.getElementById('date-display');
+      const panel = document.getElementById('date-panel');
+      const monthLabel = document.getElementById('date-month');
+      const grid = document.getElementById('date-grid');
+      const clearBtn = document.getElementById('date-clear');
+      const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+        'August', 'September', 'October', 'November', 'December'];
+
+      function parseISO(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+        const [y, m, d] = value.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      }
+      function toISO(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      function formatDisplay(date) {
+        return `${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+      }
+
+      let selected = null;
+      let viewDate = new Date();
+      let onChange = () => {};
+
+      function close() {
+        panel.hidden = true;
+        picker.classList.remove('open');
+      }
+      function showSelected() {
+        display.textContent = selected ? formatDisplay(selected) : 'No date';
+        display.classList.toggle('muted', !selected);
+        clearBtn.hidden = !selected;
+      }
+
+      function render() {
+        monthLabel.textContent = `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
+        grid.innerHTML = '';
+        const firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+        const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
+        const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+        const today = toISO(new Date());
+        for (let i = 0; i < startOffset; i++) grid.appendChild(document.createElement('span'));
+        for (let day = 1; day <= daysInMonth; day++) {
+          const cellDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = day;
+          btn.className = 'date-picker__day';
+          if (selected && toISO(cellDate) === toISO(selected)) btn.classList.add('is-selected');
+          if (toISO(cellDate) === today) btn.classList.add('is-today');
+          btn.addEventListener('click', () => {
+            selected = cellDate;
+            showSelected();
+            close();
+            render();
+            onChange(toISO(cellDate));
+          });
+          grid.appendChild(btn);
+        }
+      }
+
+      trigger.addEventListener('click', () => {
+        const opening = panel.hidden;
+        panel.hidden = !opening;
+        picker.classList.toggle('open', opening);
+      });
+      document.getElementById('date-prev').addEventListener('click', () => {
+        viewDate.setMonth(viewDate.getMonth() - 1);
+        render();
+      });
+      document.getElementById('date-next').addEventListener('click', () => {
+        viewDate.setMonth(viewDate.getMonth() + 1);
+        render();
+      });
+      clearBtn.addEventListener('click', () => {
+        selected = null;
+        showSelected();
+        close();
+        render();
+        onChange('');
+      });
+      document.addEventListener('click', e => {
+        if (!picker.contains(e.target)) close();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !panel.hidden) { close(); trigger.focus(); }
+      });
+
+      return {
+        // Shows `value` ("YYYY-MM-DD" or '') without calling onChange.
+        set(value) {
+          selected = parseISO(value);
+          viewDate = selected ? new Date(selected.getFullYear(), selected.getMonth(), 1) : new Date();
+          viewDate.setDate(1);
+          close();
+          showSelected();
+          render();
+        },
+        get() { return selected ? toISO(selected) : ''; },
+        onChange(fn) { onChange = fn; },
+        format(value) { const d = parseISO(value); return d ? formatDisplay(d) : ''; },
+      };
+    })();
+
+    // Sheets deleted since are dropped; a key that no longer fits the sheet
+    // (its key was changed) falls back to the sheet's own.
+    function openSetlist(setlist) {
+      current = { id: setlist.id, created_at: setlist.created_at, stored: setlist.stored !== false };
+      nameInput.value = setlist.name || '';
+      datePicker.set(setlist.date || '');
+      songs = (setlist.rows || []).filter(r => r.type === 'break' || sheetFor(r)).map(r => {
+        if (r.type === 'break') return { uid: nextUid(), type: 'break' };
+        const sheet = sheetFor(r);
+        const sheetKey = readKey(sheet.key);
+        const fits = sheetKey && keyList(sheetKey.minor).includes(r.key);
+        const song = { uid: nextUid(), type: 'song', id: r.id, key: fits ? r.key : originalKey(sheet) };
+        if (r.source === 'local') song.source = 'local';
+        return song;
+      });
+      try { localStorage.setItem(CURRENT_KEY, current.id); } catch (err) { /* storage blocked */ }
+    }
+
+    async function save() {
       const rows = songs.map(({ uid, ...rest }) => rest);
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify({ name: nameInput.value, rows }));
-      } catch (err) { /* storage blocked or full: the setlist just isn't kept */ }
+      const date = datePicker.get();
+      if (current.stored || rows.length || nameInput.value.trim() || date) {
+        try {
+          await store.save('setlists', current.id, { name: nameInput.value, date, rows, created_at: current.created_at });
+          current.stored = true;
+        } catch (err) { /* storage blocked or full: the setlist just isn't kept */ }
+      }
+      renderMenu();
     }
 
-    const saved = load();
-    // Sheets deleted from the archive since are dropped; a key that no longer
-    // fits the sheet (its key was changed) falls back to the sheet's own.
-    let songs = saved.rows.filter(r => r.type === 'break' || byId.has(r.id)).map(r => {
-      if (r.type === 'break') return { uid: nextUid(), type: 'break' };
-      const sheetKey = readKey(byId.get(r.id).key);
-      const fits = sheetKey && keyList(sheetKey.minor).includes(r.key);
-      return { uid: nextUid(), type: 'song', id: r.id, key: fits ? r.key : originalKey(byId.get(r.id)) };
+    /* ---------- Choosing a setlist ---------- */
+    // The menu in the top right: dated setlists first, newest at the top,
+    // then those without a date alphabetically; the open one highlighted,
+    // and "New setlist" last.
+    const menuBtn = document.getElementById('setlist-menu-btn');
+    const menuLabel = document.getElementById('setlist-menu-label');
+    const menuList = document.getElementById('setlist-menu-list');
+    const displayName = name => String(name || '').trim() || 'Untitled setlist';
+
+    function menuItem(text, className, onClick, date = '') {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = className;
+      b.setAttribute('role', 'menuitem');
+      const label = document.createElement('span');
+      label.className = 'setlist-menu__name';
+      label.textContent = text;
+      b.appendChild(label);
+      if (date) {
+        const when = document.createElement('span');
+        when.className = 'setlist-menu__date';
+        when.textContent = datePicker.format(date);
+        b.appendChild(when);
+      }
+      b.addEventListener('click', () => { closeMenu(); onClick(); });
+      li.appendChild(b);
+      return li;
+    }
+
+    async function renderMenu() {
+      menuLabel.textContent = displayName(nameInput.value);
+      const byName = (a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base', numeric: true });
+      const setlists = (await store.list('setlists')).filter(s => s.id !== current.id)
+        .concat({ id: current.id, name: nameInput.value, date: datePicker.get() })
+        .map(s => ({ id: s.id, label: displayName(s.name), date: s.date || '' }))
+        .sort((a, b) => (a.date && b.date ? b.date.localeCompare(a.date) : a.date ? -1 : b.date ? 1 : 0) || byName(a, b));
+      menuList.replaceChildren(...setlists.map(s => {
+        const isCurrent = s.id === current.id;
+        return menuItem(s.label,
+          isCurrent ? 'setlist-menu__item is-current' : 'setlist-menu__item',
+          async () => {
+            if (isCurrent) return;
+            const setlist = await store.get('setlists', s.id);
+            if (setlist) switchTo(setlist);
+          }, s.date);
+      }), menuItem('+ New setlist', 'setlist-menu__item setlist-menu__item--new', () => {
+        if (current.stored || songs.length) switchTo(blankSetlist());
+        nameInput.focus();
+      }));
+    }
+
+    function closeMenu() {
+      menuList.hidden = true;
+      menuBtn.setAttribute('aria-expanded', 'false');
+    }
+    menuBtn.addEventListener('click', () => {
+      const open = menuList.hidden;
+      menuList.hidden = !open;
+      menuBtn.setAttribute('aria-expanded', String(open));
+    });
+    document.addEventListener('click', e => {
+      if (!menuList.hidden && !e.target.closest('.setlist-menu')) closeMenu();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !menuList.hidden) { closeMenu(); menuBtn.focus(); }
     });
 
-    const nameInput = document.getElementById('setlist-name');
-    nameInput.value = saved.name || '';
+    function switchTo(setlist) {
+      openSetlist(setlist);
+      renderAll();
+    }
+
+    document.getElementById('setlist-duplicate').addEventListener('click', () => {
+      switchTo({
+        id: store.newId('setlists'),
+        name: `${nameInput.value.trim() || 'Setlist'} (copy)`,
+        rows: songs.map(({ uid, ...rest }) => rest),
+        stored: false,
+      });
+    });
+
+    // The page's confirm dialog: resolves true on Delete, false on Cancel, a
+    // click outside the box or Esc.
+    const confirmModal = document.getElementById('setlist-confirm');
+    const confirmOk = document.getElementById('setlist-confirm-ok');
+    let confirmAnswer = null;
+    function askConfirm(text) {
+      document.getElementById('setlist-confirm-text').textContent = text;
+      confirmModal.hidden = false;
+      confirmOk.focus();
+      return new Promise(resolve => { confirmAnswer = resolve; });
+    }
+    function answerConfirm(ok) {
+      confirmModal.hidden = true;
+      if (confirmAnswer) confirmAnswer(ok);
+      confirmAnswer = null;
+    }
+    confirmModal.addEventListener('click', e => { if (e.target === confirmModal) answerConfirm(false); });
+    document.getElementById('setlist-confirm-cancel').addEventListener('click', () => answerConfirm(false));
+    confirmOk.addEventListener('click', () => answerConfirm(true));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !confirmModal.hidden) answerConfirm(false);
+    });
+
+    document.getElementById('setlist-delete').addEventListener('click', async () => {
+      if (!await askConfirm(`Delete "${nameInput.value.trim() || 'Untitled setlist'}"?`)) return;
+      if (current.stored) {
+        try { await store.remove('setlists', current.id); } catch (err) { /* storage blocked */ }
+      }
+      const [next] = await store.list('setlists');
+      switchTo((next && await store.get('setlists', next.id)) || blankSetlist());
+    });
+
+    {
+      const setlists = await store.list('setlists');
+      let lastId = null;
+      try { lastId = localStorage.getItem(CURRENT_KEY); } catch (err) { /* storage blocked */ }
+      const start = setlists.find(s => s.id === lastId) || setlists[0];
+      openSetlist((start && await store.get('setlists', start.id)) || blankSetlist());
+    }
     nameInput.addEventListener('input', save);
+    datePicker.onChange(save);
 
     /* ---------- Picking sheets ---------- */
     const pickListEl = document.getElementById('sheet-pick-list');
     const searchInput = document.getElementById('sheet-search');
     let searchTerms = [];
 
+    // The user's own sheets first, under their own heading, then the archive.
     function renderPickList() {
-      const chosen = new Set(songs.filter(s => s.type === 'song').map(s => s.id));
+      const chosen = new Set(songs.filter(s => s.type === 'song').map(rowKey));
       pickListEl.replaceChildren();
-      archive
-        .filter(sheet => {
-          const haystack = `${sheet.title} ${sheet.artist}`.toLowerCase();
-          return searchTerms.every(t => haystack.includes(t));
-        })
-        .forEach(sheet => {
+      const matches = sheet => {
+        const haystack = `${sheet.title} ${sheet.artist}`.toLowerCase();
+        return searchTerms.every(t => haystack.includes(t));
+      };
+      const addGroup = (sheets, source, heading) => {
+        const shown = sheets.filter(matches);
+        if (heading && shown.length) {
+          const li = document.createElement('li');
+          li.className = 'pick-list__group';
+          li.textContent = heading;
+          pickListEl.appendChild(li);
+        }
+        shown.forEach(sheet => {
           const li = document.createElement('li');
           li.textContent = sheet.title;
           if (sheet.artist) {
@@ -172,11 +492,14 @@
             artist.textContent = sheet.artist;
             li.appendChild(artist);
           }
-          const isChosen = chosen.has(sheet.id);
+          const isChosen = chosen.has(rowKey({ source, id: sheet.id }));
           li.classList.toggle('is-selected', isChosen);
-          if (!isChosen) li.addEventListener('click', () => addSong(sheet));
+          if (!isChosen) li.addEventListener('click', () => addSong(sheet, source));
           pickListEl.appendChild(li);
         });
+      };
+      addGroup(mine, 'local', mine.length ? 'Your sheets' : '');
+      addGroup(archive, undefined, mine.length ? 'Archive' : '');
     }
 
     searchInput.addEventListener('input', () => {
@@ -184,8 +507,10 @@
       renderPickList();
     });
 
-    function addSong(sheet) {
-      songs.push({ uid: nextUid(), type: 'song', id: sheet.id, key: originalKey(sheet) });
+    function addSong(sheet, source) {
+      const song = { uid: nextUid(), type: 'song', id: sheet.id, key: originalKey(sheet) };
+      if (source) song.source = source;
+      songs.push(song);
       renderAll();
     }
 
@@ -265,7 +590,7 @@
           return;
         }
 
-        const sheet = byId.get(song.id);
+        const sheet = sheetFor(song);
         const handleTd = document.createElement('td');
         handleTd.className = 'drag-handle';
         handleTd.draggable = true;
@@ -276,6 +601,12 @@
         titleTd.className = 'title-cell';
         titleTd.textContent = sheet.title;
         titleTd.title = sheet.title;
+        if (song.source === 'local') {
+          const tag = document.createElement('span');
+          tag.className = 'mine-tag';
+          tag.textContent = 'yours';
+          titleTd.appendChild(tag);
+        }
         tr.appendChild(titleTd);
 
         const artistTd = document.createElement('td');
@@ -384,13 +715,17 @@
     });
     breakSource.addEventListener('dragend', () => { dragId = null; });
 
-    document.getElementById('setlist-clear').addEventListener('click', () => {
-      if (!songs.length || !confirm('Clear the setlist?')) return;
-      songs = [];
-      renderAll();
-    });
-
     renderAll();
+
+    // Everything changes after an import, so start the page afresh. Only
+    // viewers have backup buttons: the admin's setlists are on the server.
+    if (document.getElementById('backup-export')) {
+      store.wireBackupButtons(
+        document.getElementById('backup-export'),
+        document.getElementById('backup-import'),
+        () => location.reload(),
+      );
+    }
 
     /* ---------- PDF ---------- */
     const status = document.getElementById('bundle-status');
@@ -419,6 +754,11 @@
     async function buildPlan() {
       const rows = songs.filter(s => s.type === 'song');
       const fetched = await Promise.all(rows.map(async row => {
+        if (row.source === 'local') {
+          const sheet = await store.get('sheets', row.id);
+          if (!sheet) throw new Error(`"${sheetFor(row).title}" isn't saved any more`);
+          return sheet;
+        }
         const resp = await fetch(`/sheets/${encodeURIComponent(row.id)}/json`);
         if (!resp.ok) throw new Error(`couldn't load "${byId.get(row.id).title}"`);
         return resp.json();
@@ -445,13 +785,23 @@
       return {
         pages,
         sets: sets.filter(set => set.length),
-        subtitle: name,
+        // Under "Setlist", like the James Band intern app's gig PDF:
+        // "Bryllup · 29. aug. 2026" (there it's the venue and the date).
+        subtitle: [name, danishDate(datePicker.get())].filter(Boolean).join(' · '),
         filename: base ? `${base} – lead sheets.pdf` : 'Setlist.pdf',
       };
     }
 
+    // "2026-09-05" as the James Band intern app writes it: "5. sep. 2026".
+    const DA_MONTHS_ABBR = ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.',
+      'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'];
+    function danishDate(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+      return m ? `${Number(m[3])}. ${DA_MONTHS_ABBR[Number(m[2]) - 1]} ${m[1]}` : '';
+    }
+
     function snapshot() {
-      return JSON.stringify([nameInput.value, songs.map(({ uid, ...rest }) => rest)]);
+      return JSON.stringify([nameInput.value, datePicker.get(), songs.map(({ uid, ...rest }) => rest)]);
     }
 
     function download() {

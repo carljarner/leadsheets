@@ -114,7 +114,7 @@ def _clean_url(value) -> str:
     return url
 
 
-# /sheets/new is the page for a sheet that isn't saved yet.
+# Kept free so an old /sheets/new link never opens a sheet.
 RESERVED_IDS = {"new"}
 
 
