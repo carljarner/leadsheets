@@ -10,6 +10,8 @@
 </div>
 
 {% if sheets %}
+<span class="muted">{{ sheets|length }} song{{ "" if sheets|length == 1 else "s" }}</span>
+
 <ul class="setlist-cards">
   {% for sheet in sheets %}
   <li class="setlist-card leadsheet-card" data-search="{{ (sheet.title ~ ' ' ~ (sheet.artist or '')) | lower }}">

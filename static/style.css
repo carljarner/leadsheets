@@ -457,6 +457,11 @@ button.danger:hover { background: var(--accent); color: #12130f; }
   justify-content: space-between;
   gap: 1rem;
 }
+/* A flex/grid item's margin doesn't collapse into the tabs' margin above, as
+   the bare h1 on the Setlist page does, so move the h1's top margin onto the
+   toolbar (0.67em of the h1 size) to line the titles up. */
+.setlists-toolbar { margin-top: calc(0.67 * clamp(1.8rem, 5vw, 2.4rem)); }
+.setlists-toolbar h1 { margin-top: 0; }
 
 .button-link {
   display: inline-block;
@@ -1579,6 +1584,7 @@ textarea:focus {
   .main-nav { padding: 1rem 1rem 0; }
   .container, .container--full { padding: 1rem; }
   h1 { margin: 0.4rem 0; }
+  .setlists-toolbar { margin-top: 0.4rem; }
 
   /* Five tabs don't fit at the desktop size: shrink them, and let the strip
      scroll sideways rather than widen the page if they still don't. */
