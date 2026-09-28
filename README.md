@@ -52,12 +52,21 @@ ADMIN_PASSWORD=a VIEWER_PASSWORD=v SESSION_SECRET=s API_TOKEN=t \
    ```bash
    ssh web-1 'mkdir -p /srv/leadsheets/data/leadsheets && cp -a /srv/jamesband/data/leadsheets/. /srv/leadsheets/data/leadsheets/'
    ```
-4. **Coolify:** in the project, choose **+ New → Private Repository (GitHub App)**,
-   repo `leadsheets`, branch `main`.
+4. **Deploy key:** in Coolify, **Keys & Tokens → Private Keys → + Add**, generate
+   a key named `leadsheets-deploy` and copy its public key. On GitHub, add it
+   under the repo's **Settings → Deploy keys**, read-only (write access off).
+5. **Coolify:** in the project, choose **+ New → Private Repository (with Deploy Key)**,
+   key `leadsheets-deploy`, repo `git@github.com:carljarner/leadsheets.git`,
+   branch `main`.
    - Build Pack: Dockerfile. Ports Exposes: `10000`.
    - Persistent Storage: directory mount from `/srv/leadsheets/data` to `/data`.
    - Environment variables: the ones in the table above, with
      `DATA_DIR=/data` and `SECURE_COOKIES=1`.
    - Domains: `https://leadsheets.dk,https://www.leadsheets.dk`.
-5. **Backups:** add `/srv/leadsheets` to the restic backup paths, and add an
-   UptimeRobot check for `https://leadsheets.dk/login`.
+6. **Auto-deploy:** a deploy key gets no push webhook by itself. Copy the URL
+   and secret from the resource's **Webhooks** tab into the repo's
+   **Settings → Webhooks** on GitHub (content type `application/json`).
+7. **Backups:** the nightly restic job (`/usr/local/bin/backup-srv`) backs up
+   all of `/srv`, so `/srv/leadsheets` is included. Run it once and check with
+   `restic ls latest /srv/leadsheets`. Add an UptimeRobot check for
+   `https://leadsheets.dk/login`.
