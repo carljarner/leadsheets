@@ -4,6 +4,10 @@ A lead sheet archive and editor, split out of the James Band intern app.
 The whole site is behind a login for now (`noindex`, `robots.txt` blocks
 everything).
 
+- **Setlist** (`/setlist`): pick sheets from the archive, put them in
+  order (with pauses between sets), choose each one's key, and download
+  one PDF: a setlist page, then every chart in that order and key. The
+  setlist is kept in this browser only (localStorage).
 - **Lead Sheets** (`/sheets`): the archive. Anyone logged in can open a
   sheet, transpose it, follow its links and print it or save it as a PDF.
 - **Create New** (`/new`): the editor.

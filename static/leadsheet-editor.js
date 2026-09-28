@@ -5400,5 +5400,94 @@
     else alert('Failed to delete: ' + await resp.text());
   });
 
+  /* ---------- setlist PDF ---------- */
+  // The setlist page (setlist.html) loads this script with the editor's
+  // markup hidden, and uses the same drawing to make one PDF of the setlist:
+  // a page listing it, then every sheet in order. `plan` is built on that
+  // page: each sheet plus how far to transpose it and whether to spell it
+  // with flats.
+  // The setlist as a page of its own, drawn on the sheet like a lead sheet's
+  // header: "Treasure (C#m)" per song in the title font, one column per set
+  // (at most three). The text is sized as if there were three columns
+  // whatever the count, so one or two sets don't get huge type, and shrinks
+  // further only when a set is too long for the page.
+  function renderSetlistSvg(sets, subtitle) {
+    const svg = document.getElementById('sheet-svg');
+    svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.appendChild(svgRect(0, 0, PAGE_W, PAGE_H, { cls: 'page-bg' }));
+    svg.appendChild(svgText('Setlist', PAGE_W / 2, PAGE_MARGIN, { cls: 'page-title-text', anchor: 'middle', size: 22 }));
+    if (subtitle) {
+      svg.appendChild(svgText(subtitle, PAGE_W / 2, PAGE_MARGIN + 22, { cls: 'page-key-text', anchor: 'middle', size: 13 }));
+    }
+
+    const cols = sets.slice(0, 3);
+    const labelled = cols.length > 1;
+    const top = PAGE_MARGIN + 70;
+    const bottom = PAGE_H - PAGE_MARGIN;
+    const colW = (PAGE_W - 2 * PAGE_MARGIN) / cols.length;
+    const gap = 24;
+    const rows = Math.max(...cols.map(c => c.length)) + (labelled ? 1.5 : 0);
+    // After the title, in lighter grey: "(Ab   1.5 ↑)" -- the key, and how
+    // far it's moved with a gap as wide as " - " before it.
+    const keyParts = song => !song.key ? [] : song.amount ? [` (${song.key}`, `${song.amount})`] : [` (${song.key})`];
+    const gapW = measureTextWidth(' - ', 100) / 100;
+    const lineWidth = song => measureTextWidth(song.title, 100) / 100
+      + keyParts(song).reduce((w, part) => w + measureTextWidth(part, 100) / 100, 0)
+      + (song.key && song.amount ? gapW : 0);
+    const widest = Math.max(...cols.flat().map(lineWidth));
+    const threeColW = (PAGE_W - 2 * PAGE_MARGIN) / 3;
+    const lineH = Math.min(44, (bottom - top) / rows);
+    const size = Math.min(26, (threeColW - gap) / widest, lineH * 0.62);
+
+    cols.forEach((col, i) => {
+      const x = PAGE_MARGIN + i * colW + gap / 2;
+      let y = top;
+      if (labelled) {
+        svg.appendChild(svgText(`Set ${i + 1}`, x, y, { cls: 'page-key-text', size: 15 }));
+        y += lineH * 1.5;
+      }
+      col.forEach(song => {
+        const text = svgText(song.title, x, y, { cls: 'page-title-text', size });
+        keyParts(song).forEach((part, n) => {
+          const tspan = document.createElementNS(SVG_NS, 'tspan');
+          tspan.setAttribute('class', 'page-key-text');
+          if (n) tspan.setAttribute('dx', gapW * size);
+          tspan.textContent = part;
+          text.appendChild(tspan);
+        });
+        svg.appendChild(text);
+        y += lineH;
+      });
+    });
+  }
+
+  async function buildLeadSheetBundle(plan, onProgress) {
+    await Promise.all(['MuseJazzText', 'MuseJazz'].map(f => document.fonts.load(`20px ${f}`))).catch(() => {});
+    const jpegs = [];
+    if (plan.sets && plan.sets.length) {
+      renderSetlistSvg(plan.sets, plan.subtitle || '');
+      jpegs.push(await sheetJpegBytes());
+    }
+    for (let i = 0; i < plan.pages.length; i++) {
+      const page = plan.pages[i];
+      onProgress(i + 1, plan.pages.length);
+      model = JSON.parse(JSON.stringify(page.sheet));
+      model.elements = model.elements || [];
+      selectedIds.clear();
+      activeSlot = null;
+      transposeState.semitones = page.semitones;
+      transposeState.flats = page.flats;
+      renderSvg();
+      jpegs.push(await sheetJpegBytes());
+    }
+    return new File([jpegsToPdf(jpegs)], plan.filename, { type: 'application/pdf' });
+  }
+
+  if (window.LEADSHEET_BUNDLE_PAGE) {
+    window.buildLeadSheetBundle = buildLeadSheetBundle;
+    return;
+  }
+
   render();
 })();

@@ -211,6 +211,16 @@ async def sheet_page(request: Request, leadsheet_id: str):
     )
 
 
+@app.get("/sheets/{leadsheet_id}/json")
+async def sheet_json(leadsheet_id: str):
+    # The whole sheet, for the setlist page to draw into its PDF.
+    try:
+        sheet = sheets.get_leadsheet(leadsheet_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return JSONResponse(sheet, headers={"Cache-Control": "no-store"})
+
+
 @app.post("/sheets/{leadsheet_id}")
 async def sheet_save(leadsheet_id: str, request: Request):
     require_admin(request)
@@ -231,6 +241,22 @@ async def sheet_delete(leadsheet_id: str, request: Request):
     except KeyError:
         raise HTTPException(status_code=404)
     return RedirectResponse("/sheets", status_code=303)
+
+
+@app.get("/setlist", response_class=HTMLResponse)
+async def setlist_page(request: Request):
+    # The setlist itself lives in the browser (localStorage); the page gets
+    # the archive to pick from and fetches each sheet when making the PDF.
+    catalog = [
+        {"id": s["id"], "title": s["title"], "artist": s.get("artist", ""), "key": s.get("key", "")}
+        for s in sheets.list_leadsheets()
+    ]
+    sheet = {"id": "", "title": "", "artist": "", "key": "", "elements": []}
+    return templates.TemplateResponse(
+        request,
+        "setlist.html",
+        {"sheets_json": _json(catalog), "sheet_json": _json(sheet)},
+    )
 
 
 @app.get("/new", response_class=HTMLResponse)

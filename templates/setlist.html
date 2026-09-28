@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+{% block title %}Setlist{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+<h1>Setlist</h1>
+
+<div class="setlist-layout">
+  <div class="setlist-layout__side">
+    <div class="top-box top-box--picker">
+      <div class="top-box__header">
+        <h2>Choose songs</h2>
+        <input type="search" id="sheet-search" class="top-box__search" placeholder="Search…" autocomplete="off" />
+      </div>
+      <ul id="sheet-pick-list" class="pick-list"></ul>
+    </div>
+  </div>
+
+  <div class="setlist-layout__main">
+    <label class="setlist-name">
+      <span class="muted">Name (shown on the setlist page)</span>
+      <input type="text" id="setlist-name" placeholder="e.g. Bryllup 29/8" autocomplete="off" />
+    </label>
+
+    <div class="setlist-wrap">
+      <table class="setlist-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th id="title-header">Title</th>
+            <th>Artist</th>
+            <th>Key</th>
+            <th>Transposed</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="setlist-body"></tbody>
+        <tbody>
+          <tr class="drop-tail" id="setlist-drop-tail"><td colspan="6"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="setlist-break-source" id="break-source" draggable="true" title="Drag into the setlist to mark a pause between sets">
+      <span class="setlist-break-source__line"></span>
+      <span class="setlist-break-source__label">Drag in a pause between sets</span>
+      <span class="setlist-break-source__line"></span>
+    </div>
+
+    <div class="form-actions setlist-actions">
+      <button type="button" id="setlist-clear" class="btn-small">Clear</button>
+      <button type="button" id="bundle-share" class="btn-small">Share</button>
+      <div class="bundle-actions">
+        <span id="bundle-status" class="save-status"></span>
+        <button type="button" id="bundle-download" class="primary btn-small">PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bundle-modal" class="modal-overlay" hidden>
+  <div class="modal-box modal-box--centered">
+    <p id="bundle-modal-text">Preparing lead sheets…</p>
+    <div class="progress"><div id="bundle-modal-bar" class="progress__bar"></div></div>
+  </div>
+</div>
+
+{# The editor's own sheet page, off screen: each song is drawn here in turn
+   and captured for the PDF. #}
+<div class="bundle-render" aria-hidden="true">
+  {% include "_leadsheet_editor_body.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.LEADSHEET_BUNDLE_PAGE = true;
+  const initialSheet = {{ sheet_json|safe }};
+  const leadsheetId = '';
+</script>
+<script src="/static/leadsheet-editor.js?v={{ static_version }}"></script>
+<script>
+  (function () {
+    const archive = {{ sheets_json|safe }};
+    const byId = new Map(archive.map(s => [s.id, s]));
+
+    /* ---------- Keys ---------- */
+    // The same fixed spellings as chords.py: one per pitch class (C = 0).
+    const MAJOR_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+    const MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+    const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11, H: 11 };
+    const FLAT_MAJOR_ROOTS = [1, 3, 5, 8, 10]; // Db Eb F Ab Bb
+
+    // { pc, minor } of a sheet's free-text key ("F# minor", "Hm"), or null.
+    // Mirrors chords.read_key.
+    function readKey(text) {
+      const m = /^\s*([A-Ha-h])([#b♯♭]?)\s*(m(?!aj)|min|-)?/i.exec(String(text || '').split('/')[0]);
+      if (!m) return null;
+      const acc = { '#': 1, '♯': 1, b: -1, '♭': -1 }[m[2]] || 0;
+      return { pc: (LETTER_PC[m[1].toUpperCase()] + acc + 12) % 12, minor: !!m[3] };
+    }
+    function keyList(minor) { return minor ? MINOR_KEYS : MAJOR_KEYS; }
+    // Which spelling a key is written in, by its relative major (Ebm counts
+    // as flat although its major is Gb) -- like the editor's semitonePrefersFlats.
+    function prefersFlats(pc, minor) {
+      const major = minor ? (pc + 3) % 12 : pc;
+      return FLAT_MAJOR_ROOTS.includes(major) || (minor && major === 6);
+    }
+    // How far to move a sheet from its own key to `key`: the shorter way round (-5..+6).
+    function semitonesTo(sheetKey, key) {
+      const diff = (keyList(sheetKey.minor).indexOf(key) - sheetKey.pc + 12) % 12;
+      return diff > 6 ? diff - 12 : diff;
+    }
+    function originalKey(sheet) {
+      const k = readKey(sheet.key);
+      return k ? keyList(k.minor)[k.pc] : '';
+    }
+
+    /* ---------- State, kept in this browser ---------- */
+    // Rows are { type: 'song', id, key } or { type: 'break' }; `uid` is only
+    // for the page and isn't stored.
+    const STORE_KEY = 'leadsheets:setlist';
+    let uidCounter = 0;
+    function nextUid() { return 'row-' + (uidCounter++); }
+
+    function load() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+        if (saved && Array.isArray(saved.rows)) return saved;
+      } catch (err) { /* nothing saved, or storage blocked */ }
+      return { name: '', rows: [] };
+    }
+    function save() {
+      const rows = songs.map(({ uid, ...rest }) => rest);
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({ name: nameInput.value, rows }));
+      } catch (err) { /* storage blocked or full: the setlist just isn't kept */ }
+    }
+
+    const saved = load();
+    // Sheets deleted from the archive since are dropped; a key that no longer
+    // fits the sheet (its key was changed) falls back to the sheet's own.
+    let songs = saved.rows.filter(r => r.type === 'break' || byId.has(r.id)).map(r => {
+      if (r.type === 'break') return { uid: nextUid(), type: 'break' };
+      const sheetKey = readKey(byId.get(r.id).key);
+      const fits = sheetKey && keyList(sheetKey.minor).includes(r.key);
+      return { uid: nextUid(), type: 'song', id: r.id, key: fits ? r.key : originalKey(byId.get(r.id)) };
+    });
+
+    const nameInput = document.getElementById('setlist-name');
+    nameInput.value = saved.name || '';
+    nameInput.addEventListener('input', save);
+
+    /* ---------- Picking sheets ---------- */
+    const pickListEl = document.getElementById('sheet-pick-list');
+    const searchInput = document.getElementById('sheet-search');
+    let searchTerms = [];
+
+    function renderPickList() {
+      const chosen = new Set(songs.filter(s => s.type === 'song').map(s => s.id));
+      pickListEl.replaceChildren();
+      archive
+        .filter(sheet => {
+          const haystack = `${sheet.title} ${sheet.artist}`.toLowerCase();
+          return searchTerms.every(t => haystack.includes(t));
+        })
+        .forEach(sheet => {
+          const li = document.createElement('li');
+          li.textContent = sheet.title;
+          if (sheet.artist) {
+            const artist = document.createElement('span');
+            artist.className = 'pick-list__artist';
+            artist.textContent = sheet.artist;
+            li.appendChild(artist);
+          }
+          const isChosen = chosen.has(sheet.id);
+          li.classList.toggle('is-selected', isChosen);
+          if (!isChosen) li.addEventListener('click', () => addSong(sheet));
+          pickListEl.appendChild(li);
+        });
+    }
+
+    searchInput.addEventListener('input', () => {
+      searchTerms = searchInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+      renderPickList();
+    });
+
+    function addSong(sheet) {
+      songs.push({ uid: nextUid(), type: 'song', id: sheet.id, key: originalKey(sheet) });
+      renderAll();
+    }
+
+    function removeSong(uid) {
+      songs = songs.filter(s => s.uid !== uid);
+      renderAll();
+    }
+
+    /* ---------- The setlist table ---------- */
+    const tbody = document.getElementById('setlist-body');
+    const dropTail = document.getElementById('setlist-drop-tail');
+    const titleHeader = document.getElementById('title-header');
+
+    // The keys of the sheet's mode to play it in; disabled when the sheet
+    // has no key to transpose from.
+    function makeKeyCell(song, sheet) {
+      const td = document.createElement('td');
+      const select = document.createElement('select');
+      select.className = 'key-select';
+      const sheetKey = readKey(sheet.key);
+      if (!sheetKey) {
+        select.appendChild(new Option('No key', ''));
+        select.disabled = true;
+        select.title = 'The sheet has no key set, so it is printed as written.';
+      } else {
+        // "E (1 ↑)": the key and how far it is from the sheet's own, in
+        // whole tones like the editor's transpose box.
+        // Listed from 3 up to 2.5 down, so the sheet's own key sits in the middle.
+        for (let t = 6; t >= -5; t--) {
+          const k = keyList(sheetKey.minor)[(sheetKey.pc + t + 12) % 12];
+          select.appendChild(new Option(t ? `${k} (${Math.abs(t) / 2} ${t > 0 ? '↑' : '↓'})` : k, k));
+        }
+        select.value = song.key;
+        select.addEventListener('change', () => { song.key = select.value; save(); });
+      }
+      td.appendChild(select);
+      return td;
+    }
+
+    function wireRowDrag(row, handle, song, label) {
+      handle.addEventListener('dragstart', e => {
+        dragId = song.uid;
+        e.dataTransfer.effectAllowed = 'move';
+        const ghost = getDragImageEl();
+        ghost.textContent = label;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
+      });
+      handle.addEventListener('dragend', () => row.classList.remove('drop-target'));
+      wireDropHighlight(row, () => {
+        if (dragId && dragId !== song.uid) moveSong(dragId, song.uid);
+      }, { stop: true });
+    }
+
+    function renderTable() {
+      const songCount = songs.filter(s => s.type === 'song').length;
+      titleHeader.textContent = `Title (${songCount})`;
+      tbody.replaceChildren();
+      songs.forEach(song => {
+        const tr = document.createElement('tr');
+        tr.dataset.uid = song.uid;
+
+        if (song.type === 'break') {
+          tr.className = 'setlist-break-row';
+          tr.draggable = true;
+          const cell = document.createElement('td');
+          cell.className = 'setlist-break-cell';
+          cell.colSpan = 6;
+          cell.innerHTML = '<span class="setlist-break-cell__bar"></span>' +
+            '<button type="button" class="setlist-break-cell__delete" title="Remove pause">&times;</button>';
+          cell.querySelector('.setlist-break-cell__delete').addEventListener('click', e => {
+            e.stopPropagation();
+            removeSong(song.uid);
+          });
+          tr.appendChild(cell);
+          wireRowDrag(tr, tr, song, 'Pause');
+          tbody.appendChild(tr);
+          return;
+        }
+
+        const sheet = byId.get(song.id);
+        const handleTd = document.createElement('td');
+        handleTd.className = 'drag-handle';
+        handleTd.draggable = true;
+        handleTd.textContent = '⋮⋮';
+        tr.appendChild(handleTd);
+
+        const titleTd = document.createElement('td');
+        titleTd.className = 'title-cell';
+        titleTd.textContent = sheet.title;
+        titleTd.title = sheet.title;
+        tr.appendChild(titleTd);
+
+        const artistTd = document.createElement('td');
+        artistTd.className = 'artist-cell';
+        artistTd.textContent = sheet.artist || '';
+        artistTd.title = sheet.artist || '';
+        tr.appendChild(artistTd);
+
+        const originalTd = document.createElement('td');
+        originalTd.className = 'original-key-cell';
+        originalTd.textContent = String(sheet.key || '').trim() || '–';
+        tr.appendChild(originalTd);
+
+        tr.appendChild(makeKeyCell(song, sheet));
+
+        const actionsTd = document.createElement('td');
+        actionsTd.className = 'actions';
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'row-delete';
+        delBtn.innerHTML = '&times;';
+        delBtn.title = 'Remove from the setlist';
+        delBtn.addEventListener('click', () => removeSong(song.uid));
+        actionsTd.appendChild(delBtn);
+        tr.appendChild(actionsTd);
+
+        wireRowDrag(tr, handleTd, song, sheet.title);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAll() {
+      renderPickList();
+      renderTable();
+      save();
+    }
+
+    /* ---------- Drag-to-reorder ---------- */
+    const BREAK_DRAG_ID = '__new_break__';
+    let dragId = null;
+
+    function getDragImageEl() {
+      let ghost = document.getElementById('drag-image');
+      if (!ghost) {
+        ghost = document.createElement('div');
+        ghost.id = 'drag-image';
+        ghost.className = 'drag-image';
+        document.body.appendChild(ghost);
+      }
+      return ghost;
+    }
+
+    function wireDropHighlight(el, onDrop, { stop = false } = {}) {
+      let depth = 0;
+      el.addEventListener('dragenter', e => {
+        e.preventDefault();
+        if (stop) e.stopPropagation();
+        depth++;
+        el.classList.add('drop-target');
+      });
+      el.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (stop) e.stopPropagation();
+      });
+      el.addEventListener('dragleave', e => {
+        if (stop) e.stopPropagation();
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) el.classList.remove('drop-target');
+      });
+      el.addEventListener('drop', e => {
+        e.preventDefault();
+        if (stop) e.stopPropagation();
+        depth = 0;
+        el.classList.remove('drop-target');
+        onDrop();
+      });
+    }
+
+    function moveSong(uid, beforeUid) {
+      let item;
+      if (uid === BREAK_DRAG_ID) {
+        item = { uid: nextUid(), type: 'break' };
+      } else {
+        const idx = songs.findIndex(s => s.uid === uid);
+        if (idx === -1) return;
+        [item] = songs.splice(idx, 1);
+      }
+      const insertIdx = beforeUid ? songs.findIndex(s => s.uid === beforeUid) : -1;
+      if (insertIdx === -1) songs.push(item);
+      else songs.splice(insertIdx, 0, item);
+      renderTable();
+      save();
+    }
+
+    wireDropHighlight(dropTail, () => {
+      if (dragId) moveSong(dragId, null);
+    }, { stop: true });
+
+    const breakSource = document.getElementById('break-source');
+    breakSource.addEventListener('dragstart', e => {
+      dragId = BREAK_DRAG_ID;
+      e.dataTransfer.effectAllowed = 'copy';
+      const ghost = getDragImageEl();
+      ghost.textContent = 'Pause';
+      e.dataTransfer.setDragImage(ghost, 12, 16);
+    });
+    breakSource.addEventListener('dragend', () => { dragId = null; });
+
+    document.getElementById('setlist-clear').addEventListener('click', () => {
+      if (!songs.length || !confirm('Clear the setlist?')) return;
+      songs = [];
+      renderAll();
+    });
+
+    renderAll();
+
+    /* ---------- PDF ---------- */
+    const status = document.getElementById('bundle-status');
+    const downloadBtn = document.getElementById('bundle-download');
+    const shareBtn = document.getElementById('bundle-share');
+    let file = null;
+    let fileSnapshot = null;
+
+    // The same progress modal as the intern app's gig page.
+    const bundleModal = document.getElementById('bundle-modal');
+    const bundleText = document.getElementById('bundle-modal-text');
+    const bundleBar = document.getElementById('bundle-modal-bar');
+    function showProgress(done, total) {
+      bundleText.textContent = total ? `Preparing lead sheets… ${done}/${total}` : 'Preparing lead sheets…';
+      bundleBar.style.width = `${total ? (done / total) * 100 : 0}%`;
+      bundleModal.hidden = false;
+    }
+
+    function setStatus(text, error) {
+      status.textContent = text;
+      status.classList.toggle('save-status--error', !!error);
+    }
+
+    // What the PDF holds: a setlist page split into sets at the pauses, then
+    // each sheet in order, moved to its chosen key.
+    async function buildPlan() {
+      const rows = songs.filter(s => s.type === 'song');
+      const fetched = await Promise.all(rows.map(async row => {
+        const resp = await fetch(`/sheets/${encodeURIComponent(row.id)}/json`);
+        if (!resp.ok) throw new Error(`couldn't load "${byId.get(row.id).title}"`);
+        return resp.json();
+      }));
+      const sheetFor = new Map(rows.map((row, i) => [row.uid, fetched[i]]));
+
+      const sets = [[]];
+      const pages = [];
+      songs.forEach(row => {
+        if (row.type === 'break') { sets.push([]); return; }
+        const sheet = sheetFor.get(row.uid);
+        const sheetKey = readKey(sheet.key);
+        const key = sheetKey ? row.key : '';
+        const semitones = sheetKey ? semitonesTo(sheetKey, row.key) : 0;
+        // How far it's moved, in whole tones like the menu ("1.5 ↑"); empty when not.
+        const amount = semitones ? `${Math.abs(semitones) / 2} ${semitones > 0 ? '↑' : '↓'}` : '';
+        sets[sets.length - 1].push({ title: sheet.title, key: key || String(sheet.key || '').trim(), amount });
+        const flats = sheetKey ? prefersFlats(keyList(sheetKey.minor).indexOf(row.key), sheetKey.minor) : false;
+        pages.push({ sheet, semitones, flats });
+      });
+
+      const name = nameInput.value.trim();
+      const base = name.replace(/[\\/:*?"<>|]+/g, '').trim();
+      return {
+        pages,
+        sets: sets.filter(set => set.length),
+        subtitle: name,
+        filename: base ? `${base} – lead sheets.pdf` : 'Setlist.pdf',
+      };
+    }
+
+    function snapshot() {
+      return JSON.stringify([nameInput.value, songs.map(({ uid, ...rest }) => rest)]);
+    }
+
+    function download() {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+
+    // The PDF of the setlist as it is now: made once and reused until the
+    // setlist changes. Null when there's nothing to make or it failed.
+    async function currentFile() {
+      if (!songs.some(s => s.type === 'song')) {
+        setStatus('Add some lead sheets first.', true);
+        return null;
+      }
+      if (file && fileSnapshot === snapshot()) return file;
+      downloadBtn.disabled = shareBtn.disabled = true;
+      shareBtn.textContent = 'Share';
+      setStatus('');
+      showProgress(0, 0);
+      try {
+        const snap = snapshot();
+        const plan = await buildPlan();
+        // Called as sheet i of n starts drawing, so i - 1 are done.
+        file = await window.buildLeadSheetBundle(plan, (i, n) => showProgress(i - 1, n));
+        showProgress(1, 1);
+        fileSnapshot = snap;
+        return file;
+      } catch (err) {
+        file = null;
+        setStatus(`Couldn't build the PDF: ${err && err.message ? err.message : err}`, true);
+        return null;
+      } finally {
+        bundleModal.hidden = true;
+        downloadBtn.disabled = shareBtn.disabled = false;
+      }
+    }
+
+    downloadBtn.addEventListener('click', async () => {
+      if (await currentFile()) download();
+    });
+
+    // Where the browser can't share files (most desktops), Share downloads
+    // the PDF instead.
+    shareBtn.addEventListener('click', async () => {
+      const built = !(file && fileSnapshot === snapshot());
+      if (!await currentFile()) return;
+      let canShare = false;
+      try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (err) { /* no sharing */ }
+      if (!canShare) { download(); return; }
+      shareBtn.textContent = 'Share';
+      try {
+        await navigator.share({ files: [file], title: file.name });
+      } catch (err) {
+        // Making the PDF took longer than the browser lets a tap count as
+        // "the user asked to share". It's ready now, so the next tap shares
+        // straight away. (AbortError is just the share sheet being dismissed.)
+        if (built && err.name === 'NotAllowedError') shareBtn.textContent = 'Tap to share';
+      }
+    });
+  })();
+</script>
+{% endblock %}

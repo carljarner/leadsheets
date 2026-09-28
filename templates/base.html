@@ -34,6 +34,7 @@
   {% set section = request.url.path.split('/')[1] %}
   <nav class="main-nav">
     <div class="main-nav__tabs page-tabs">
+      <a href="/setlist" class="page-tabs__tab {{ 'is-active' if section == 'setlist' }}">Setlist</a>
       <a href="/sheets" class="page-tabs__tab {{ 'is-active' if section == 'sheets' }}">Lead Sheets</a>
       <a href="/new" class="page-tabs__tab {{ 'is-active' if section in ('new', 'draft') }}">Create New</a>
     </div>
