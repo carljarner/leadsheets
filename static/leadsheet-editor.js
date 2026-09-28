@@ -16,6 +16,9 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const PAGE_W = 794, PAGE_H = 1123; // A4 portrait @ 96dpi
   const PAGE_MARGIN = 28;
+  // Extra space above everything on a sheet (~0.5 cm): the page is drawn
+  // from y = -PAGE_TOP_PAD, so the sheets' own coordinates stay as they are.
+  const PAGE_TOP_PAD = 19;
   const BAR_UNIT = (PAGE_W - 2 * PAGE_MARGIN) / 9; // 9 bars exactly fill the page width (=82)
   // A row can hold up to 12 bars; past 9 the bars get narrower so the row
   // still fits within the page margins.
@@ -1115,7 +1118,8 @@
   function svgMetrics() { return svgMetricsFor(document.getElementById('sheet-svg')); }
   function clientToSvg(clientX, clientY) {
     const { rect, scale } = svgMetrics();
-    return { x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale };
+    const vb = document.getElementById('sheet-svg').viewBox.baseVal;
+    return { x: (clientX - rect.left) / scale + (vb ? vb.x : 0), y: (clientY - rect.top) / scale + (vb ? vb.y : 0) };
   }
 
   /* ---------- marquee selection ---------- */
@@ -3016,11 +3020,11 @@
     sheetPdfGen++;
     if (sheetPdf) dropSheetPdf();
     const svg = document.getElementById('sheet-svg');
-    svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
+    svg.setAttribute('viewBox', `0 ${-PAGE_TOP_PAD} ${PAGE_W} ${PAGE_H}`);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     ensureDefs(svg);
 
-    svg.appendChild(svgRect(0, 0, PAGE_W, PAGE_H, { cls: 'page-bg' }));
+    svg.appendChild(svgRect(0, -PAGE_TOP_PAD, PAGE_W, PAGE_H, { cls: 'page-bg' }));
 
     const titleStr = model.title || 'Untitled';
     svg.appendChild(svgText(titleStr, PAGE_W / 2, PAGE_MARGIN, { cls: 'page-title-text', anchor: 'middle', size: 22 }));
@@ -4174,6 +4178,12 @@
 
   wireMarquee();
   document.addEventListener('keydown', e => {
+    // Cmd/Ctrl+S saves, wherever the focus is (in a field or the staff editor too).
+    if (!isViewer() && isMod(e) && !e.altKey && !e.shiftKey && keyIs(e, 's')) {
+      e.preventDefault();
+      document.getElementById('save-btn').click();
+      return;
+    }
     if (staffEditor.el) return; // it takes the keys while it's open
     const t = e.target;
     const typing = !!(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT'));
@@ -5619,9 +5629,9 @@
   // is too long for the page.
   function renderSetlistSvg(sets, subtitle, first = 0, count = Math.min(sets.length, 3)) {
     const svg = document.getElementById('sheet-svg');
-    svg.setAttribute('viewBox', `0 0 ${PAGE_W} ${PAGE_H}`);
+    svg.setAttribute('viewBox', `0 ${-PAGE_TOP_PAD} ${PAGE_W} ${PAGE_H}`);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
-    svg.appendChild(svgRect(0, 0, PAGE_W, PAGE_H, { cls: 'page-bg' }));
+    svg.appendChild(svgRect(0, -PAGE_TOP_PAD, PAGE_W, PAGE_H, { cls: 'page-bg' }));
     svg.appendChild(svgText('Setlist', PAGE_W / 2, PAGE_MARGIN, { cls: 'page-title-text', anchor: 'middle', size: 22 }));
     if (subtitle) {
       svg.appendChild(svgText(subtitle, PAGE_W / 2, PAGE_MARGIN + 22, { cls: 'page-key-text', anchor: 'middle', size: 13 }));
@@ -5630,7 +5640,7 @@
     const cols = sets.slice(first, first + count);
     const labelled = sets.length > 1;
     const top = PAGE_MARGIN + 70;
-    const bottom = PAGE_H - PAGE_MARGIN;
+    const bottom = PAGE_H - PAGE_TOP_PAD - PAGE_MARGIN; // the page ends there, drawn from -PAGE_TOP_PAD
     const colW = (PAGE_W - 2 * PAGE_MARGIN) / cols.length;
     const gap = 24;
     const rows = Math.max(...sets.map(c => c.length)) + (labelled ? 1.5 : 0);

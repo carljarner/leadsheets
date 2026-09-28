@@ -2,6 +2,13 @@
 {% block title %}Setlist{% endblock %}
 {% block container_class %}container--full{% endblock %}
 {% block content %}
+{# What Share and PDF open: the sheets alone, or after a setlist page. #}
+{% macro bundle_menu() %}
+<ul class="setlist-menu__list bundle-menu__list" role="menu" hidden>
+  <li><button type="button" class="setlist-menu__item" role="menuitem" data-with-setlist="0">Sheets</button></li>
+  <li><button type="button" class="setlist-menu__item" role="menuitem" data-with-setlist="1">Sheets + setlist</button></li>
+</ul>
+{% endmacro %}
 <div class="setlists-toolbar">
   <h1>Setlist</h1>
   <div class="setlist-menu">
@@ -88,10 +95,16 @@
 
     <div class="form-actions setlist-actions">
       <button type="button" id="setlist-delete" class="btn-small danger">Delete</button>
-      <button type="button" id="bundle-share" class="btn-small">Share</button>
+      <div class="bundle-menu">
+        <button type="button" id="bundle-share" class="btn-small" aria-haspopup="menu" aria-expanded="false">Share</button>
+        {{ bundle_menu() }}
+      </div>
       <div class="bundle-actions">
         <span id="bundle-status" class="save-status"></span>
-        <button type="button" id="bundle-download" class="primary btn-small">PDF</button>
+        <div class="bundle-menu bundle-menu--end">
+          <button type="button" id="bundle-download" class="primary btn-small" aria-haspopup="menu" aria-expanded="false">PDF</button>
+          {{ bundle_menu() }}
+        </div>
       </div>
     </div>
   </div>
@@ -731,8 +744,11 @@
     const status = document.getElementById('bundle-status');
     const downloadBtn = document.getElementById('bundle-download');
     const shareBtn = document.getElementById('bundle-share');
+    // The last PDF made, and what it was made from (see snapshot()).
     let file = null;
     let fileSnapshot = null;
+    // Set after "Tap to share": which PDF the next tap on Share shares, skipping the menu.
+    let pendingShare = null;
 
     // The same progress modal as the intern app's gig page.
     const bundleModal = document.getElementById('bundle-modal');
@@ -751,7 +767,7 @@
 
     // What the PDF holds: a setlist page split into sets at the pauses, then
     // each sheet in order, moved to its chosen key.
-    async function buildPlan() {
+    async function buildPlan(withSetlist) {
       const rows = songs.filter(s => s.type === 'song');
       const fetched = await Promise.all(rows.map(async row => {
         if (row.source === 'local') {
@@ -784,7 +800,8 @@
       const base = name.replace(/[\\/:*?"<>|]+/g, '').trim();
       return {
         pages,
-        sets: sets.filter(set => set.length),
+        // No sets, no setlist page.
+        sets: withSetlist ? sets.filter(set => set.length) : [],
         // Under "Setlist", like the James Band intern app's gig PDF:
         // "Bryllup · 29. aug. 2026" (there it's the venue and the date).
         subtitle: [name, danishDate(datePicker.get())].filter(Boolean).join(' · '),
@@ -800,8 +817,8 @@
       return m ? `${Number(m[3])}. ${DA_MONTHS_ABBR[Number(m[2]) - 1]} ${m[1]}` : '';
     }
 
-    function snapshot() {
-      return JSON.stringify([nameInput.value, datePicker.get(), songs.map(({ uid, ...rest }) => rest)]);
+    function snapshot(withSetlist) {
+      return JSON.stringify([withSetlist, nameInput.value, datePicker.get(), songs.map(({ uid, ...rest }) => rest)]);
     }
 
     function download() {
@@ -817,19 +834,20 @@
 
     // The PDF of the setlist as it is now: made once and reused until the
     // setlist changes. Null when there's nothing to make or it failed.
-    async function currentFile() {
+    async function currentFile(withSetlist) {
       if (!songs.some(s => s.type === 'song')) {
         setStatus('Add some lead sheets first.', true);
         return null;
       }
-      if (file && fileSnapshot === snapshot()) return file;
+      if (file && fileSnapshot === snapshot(withSetlist)) return file;
       downloadBtn.disabled = shareBtn.disabled = true;
       shareBtn.textContent = 'Share';
+      pendingShare = null;
       setStatus('');
       showProgress(0, 0);
       try {
-        const snap = snapshot();
-        const plan = await buildPlan();
+        const snap = snapshot(withSetlist);
+        const plan = await buildPlan(withSetlist);
         // Called as sheet i of n starts drawing, so i - 1 are done.
         file = await window.buildLeadSheetBundle(plan, (i, n) => showProgress(i - 1, n));
         showProgress(1, 1);
@@ -845,15 +863,15 @@
       }
     }
 
-    downloadBtn.addEventListener('click', async () => {
-      if (await currentFile()) download();
-    });
+    async function downloadPdf(withSetlist) {
+      if (await currentFile(withSetlist)) download();
+    }
 
     // Where the browser can't share files (most desktops), Share downloads
     // the PDF instead.
-    shareBtn.addEventListener('click', async () => {
-      const built = !(file && fileSnapshot === snapshot());
-      if (!await currentFile()) return;
+    async function sharePdf(withSetlist) {
+      const built = !(file && fileSnapshot === snapshot(withSetlist));
+      if (!await currentFile(withSetlist)) return;
       let canShare = false;
       try { canShare = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (err) { /* no sharing */ }
       if (!canShare) { download(); return; }
@@ -864,9 +882,41 @@
         // Making the PDF took longer than the browser lets a tap count as
         // "the user asked to share". It's ready now, so the next tap shares
         // straight away. (AbortError is just the share sheet being dismissed.)
-        if (built && err.name === 'NotAllowedError') shareBtn.textContent = 'Tap to share';
+        if (built && err.name === 'NotAllowedError') {
+          shareBtn.textContent = 'Tap to share';
+          pendingShare = withSetlist;
+        }
       }
-    });
+    }
+    // Share and PDF each open a small menu: the sheets alone, or with the
+    // setlist page first.
+    function bundleMenu(btn, run) {
+      const list = btn.parentElement.querySelector('.bundle-menu__list');
+      const close = () => { list.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+      btn.addEventListener('click', () => {
+        if (btn === shareBtn && pendingShare !== null) {
+          const withSetlist = pendingShare;
+          pendingShare = null;
+          sharePdf(withSetlist);
+          return;
+        }
+        const open = list.hidden;
+        list.hidden = !open;
+        btn.setAttribute('aria-expanded', String(open));
+      });
+      list.querySelectorAll('button').forEach(item => item.addEventListener('click', () => {
+        close();
+        run(item.dataset.withSetlist === '1');
+      }));
+      document.addEventListener('click', e => {
+        if (!list.hidden && !btn.parentElement.contains(e.target)) close();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !list.hidden) { close(); btn.focus(); }
+      });
+    }
+    bundleMenu(downloadBtn, downloadPdf);
+    bundleMenu(shareBtn, sharePdf);
   })();
 </script>
 {% endblock %}

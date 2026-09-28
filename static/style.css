@@ -2168,3 +2168,18 @@ table.setlist-table tr.setlist-break-row:hover .setlist-break-cell__delete { opa
 body.ls-readonly .mode-box,
 body.ls-readonly #save-btn,
 body.ls-readonly #delete-btn { display: none !important; }
+
+/* Share and PDF's menu on the Setlist page: Sheets, or Sheets + setlist.
+   Opens upwards, centred on Share and flush right under PDF. */
+.bundle-menu { position: relative; }
+.setlist-menu__list.bundle-menu__list {
+  top: auto;
+  bottom: calc(100% + 0.4rem);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12rem;
+}
+.bundle-menu--end .setlist-menu__list.bundle-menu__list { left: auto; right: 0; transform: none; }
+.bundle-menu__list li:last-child .setlist-menu__item { margin-bottom: 0; }
+.setlist-actions .bundle-menu__list button { width: 100%; justify-content: flex-start; text-align: left; }
