@@ -3053,7 +3053,56 @@
   }
 
   /* ---------- save status ---------- */
-  function markDirty() { dirty = true; updateSaveStatus(); }
+  function markDirty() { dirty = true; updateSaveStatus(); noteChange(); }
+
+  /* ---------- page undo/redo ---------- */
+  // Whole-model snapshots. `base` is the model as it last settled; the first
+  // change after that opens a step (pushing `base`), and the step closes once
+  // the edits pause, so a drag or a typed chord undoes in one go. While the
+  // staff editor is open (it has its own undo) the step stays open, and the
+  // whole editor session is one step here.
+  const MAX_UNDO = 30;
+  const pageHistory = { undo: [], redo: [], base: JSON.stringify(model), open: false, timer: null };
+  function noteChange() {
+    const h = pageHistory;
+    if (!h.open) {
+      h.undo.push(h.base);
+      if (h.undo.length > MAX_UNDO) h.undo.shift();
+      h.redo = [];
+      h.open = true;
+    }
+    clearTimeout(h.timer);
+    if (!staffEditor.el) h.timer = setTimeout(commitStep, 500);
+  }
+  function commitStep() {
+    const h = pageHistory;
+    clearTimeout(h.timer);
+    if (!h.open) return;
+    h.open = false;
+    h.base = JSON.stringify(model);
+    if (h.undo[h.undo.length - 1] === h.base) h.undo.pop(); // nothing really changed
+  }
+  // `dir` -1 undoes, 1 redoes.
+  function undoPage(dir) {
+    commitStep();
+    const h = pageHistory;
+    const from = dir < 0 ? h.undo : h.redo;
+    const to = dir < 0 ? h.redo : h.undo;
+    if (!from.length) return;
+    to.push(h.base);
+    h.base = from.pop();
+    model = JSON.parse(h.base);
+    model.elements = model.elements || [];
+    closePopup();
+    const ids = new Set(model.elements.map(el => el.id));
+    [...selectedIds].forEach(id => { if (!ids.has(id)) selectedIds.delete(id); });
+    activeSlot = null;
+    if (document.activeElement && editBox.contains(document.activeElement)) document.activeElement.blur();
+    renderEditBox(); // its fields hold the old elements
+    render();
+    dirty = true;
+    updateSaveStatus();
+  }
   function updateSaveStatus() {
     const el = document.getElementById('save-status');
     el.textContent = dirty ? 'Unsaved' : 'Saved';
@@ -4133,8 +4182,15 @@
       else if (selectedIds.size) { clearSelection(); renderSvg(); }
       return;
     }
-    // The rest are left alone while typing in any field.
-    if (typing || !selectedIds.size) return;
+    // The rest are left alone while typing in any field (it has its own undo).
+    if (typing) return;
+    // Cmd/Ctrl+Z undoes the last page edit; with Shift (or Ctrl+Y) redoes it.
+    if (!isViewer() && isMod(e) && !e.altKey && (keyIs(e, 'z') || (!IS_MAC && keyIs(e, 'y')))) {
+      e.preventDefault();
+      undoPage(keyIs(e, 'y') || e.shiftKey ? 1 : -1);
+      return;
+    }
+    if (!selectedIds.size) return;
     // Enter or N on a single selected note staff opens it in the staff editor.
     const only = selectedIds.size === 1 ? model.elements.find(el => selectedIds.has(el.id)) : null;
     if (only && (only.type === 'notestaff' || only.type === 'rhythmbar') && plain(e) && (e.key === 'Enter' || keyIs(e, 'n')) && t.tagName !== 'BUTTON') {
@@ -4419,6 +4475,7 @@
     if (!keep && staffSnapshot(el) !== opening) { restoreStaff(el, opening); markDirty(); }
     staffEditor.el = null;
     staffEditorEl.hidden = true;
+    commitStep(); // the whole editor session is one page undo step
     renderSvg();
   }
 
