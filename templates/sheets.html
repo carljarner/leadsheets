@@ -8,6 +8,7 @@
   <input type="search" id="sheet-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search lead sheets" autocomplete="off" hidden />
 </div>
 
+<h2 class="sheets-section-title">Drafts</h2>
 {% if not admin %}
 <div class="local-note">
   <p class="muted">Your sheets are saved in this browser only. Export a backup to keep them safe or to move them to another device.</p>
@@ -23,7 +24,7 @@
 <p id="drafts-empty" class="muted" hidden>No sheets yet. <a href="/draft?mode=edit#new">Create New</a> to make one.</p>
 
 {% if admin %}
-<h2>Archive</h2>
+<h2 class="sheets-section-title">Archive</h2>
 {% if sheets %}
 <span class="muted">{{ sheets|length }} song{{ "" if sheets|length == 1 else "s" }}</span>
 <ul class="setlist-cards">

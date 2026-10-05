@@ -691,6 +691,7 @@ textarea:focus {
 }
 
 .setlist-card.leadsheet-card[hidden] { display: none; }
+.sheets-section-title { margin-bottom: 0.15rem; }
 
 @media (max-width: 600px) {
   .leadsheets-toolbar { grid-template-columns: 1fr auto; }
