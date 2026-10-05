@@ -1,26 +1,29 @@
 # leadsheets.dk
 
-A lead sheet archive and editor, split out of the James Band intern app.
-The whole site is behind a login for now (`noindex`, `robots.txt` blocks
-everything).
+A lead sheet editor and setlist tool, split out of the James Band intern
+app. The tool is public and needs no login. The archive of sheets is
+private: only the admin sees it. The admin logs in at `/login`, which
+nothing links to.
 
-- **Setlist** (`/setlist`): pick sheets from the archive (and your own
-  sheets), put them in order (with pauses between sets), choose each one's
-  key, and download one PDF: a setlist page, then every chart in that order
-  and key. Keep as many named setlists as you like.
-- **Lead Sheets** (`/sheets`): the archive. Anyone logged in can open a
-  sheet, transpose it, follow its links and print it or save it as a PDF.
-  **Customize** makes your own version of a sheet (an archive sheet or one
-  of your own) to change as you like. If the original is deleted, its
-  versions become sheets of their own.
-- **Create New** (`/new`): the editor, and **Your Sheets**.
+- **Setlist** (`/setlist`): pick from your own sheets (and, for the admin,
+  the archive), put them in order (with pauses between sets), choose each
+  one's key, and download one PDF: a setlist page, then every chart in that
+  order and key. Keep as many named setlists as you like.
+- **Lead Sheets** (`/sheets`): your own sheets, with **Export backup** and
+  **Import**. Open one to transpose it, follow its links and print it or
+  save it as a PDF. **Customize** makes your own version of a sheet to
+  change as you like. If the original is deleted, its versions become
+  sheets of their own. The admin also sees the **Archive** here. To
+  everyone else, `/sheets/{id}` and `/sheets/{id}/json` return 404.
+- **Create New** (`/draft?mode=edit#new`): the editor, straight away.
+  (`/new` redirects there.)
   - **Admin** can switch any archive sheet into Edit mode to save or
     delete it. New sheets start as drafts; the **Saved in** box (Archive /
     Draft) at the top of Edit mode moves a draft into the archive, one way
     only. A version of an archive sheet replaces its original there.
-  - **Viewer** gets the full editor, but their sheets are saved only in
-    their own browser. The server refuses every write from a viewer with a
-    403.
+  - **Everyone else** gets the full editor, but their sheets are saved only
+    in their own browser. The server refuses every write to the archive
+    with a 403.
 
 - **API** (`/api/sheets`, `/api/sheets/{id}`): read-only JSON for other
   sites, such as the James Band intern app. Send
@@ -37,14 +40,14 @@ methods:
   (`user_store.py`, served at `/me/<kind>/<id>`), so they're the same on
   every device. The first visit after this change copies up whatever the
   admin's browser held.
-- **Viewers:** in their browser's localStorage, since viewers share one
-  password and have no accounts. These don't sync between devices, and
+- **Everyone else:** in their browser's localStorage, since they have no
+  accounts. These don't sync between devices, and
   clearing site data deletes them. Safari also deletes them after 7 days of
-  use without a visit. **Export backup** and **Import** (on Your Sheets and
+  use without a visit. **Export backup** and **Import** (on Lead Sheets and
   Setlist) move them between browsers or restore them. Import merges by id,
   and of two copies the newer one wins.
 
-Every record has a random id and `updated_at`, so giving viewers accounts
+Every record has a random id and `updated_at`, so giving visitors accounts
 later means a folder per user and the same merge to upload their browsers.
 
 Sheets are stored as `DATA_DIR/leadsheets/<id>.json`. The ids match the
@@ -55,7 +58,6 @@ James Band intern app's.
 | Variable | |
 |---|---|
 | `ADMIN_PASSWORD` | Admin login (comma-separated for several) |
-| `VIEWER_PASSWORD` | Viewer login (comma-separated for several) |
 | `SESSION_SECRET` | A long random string: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `API_TOKEN` | Tokens for the read API, comma-separated, one per consumer |
 | `DATA_DIR` | `/data` in production. Defaults to `./data` |
@@ -65,7 +67,7 @@ James Band intern app's.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ADMIN_PASSWORD=a VIEWER_PASSWORD=v SESSION_SECRET=s API_TOKEN=t \
+ADMIN_PASSWORD=a SESSION_SECRET=s API_TOKEN=t \
   .venv/bin/uvicorn app:app --reload --port 10001
 ```
 
@@ -95,4 +97,4 @@ ADMIN_PASSWORD=a VIEWER_PASSWORD=v SESSION_SECRET=s API_TOKEN=t \
 7. **Backups:** the nightly restic job (`/usr/local/bin/backup-srv`) backs up
    all of `/srv`, so `/srv/leadsheets` is included. Run it once and check with
    `restic ls latest /srv/leadsheets`. Add an UptimeRobot check for
-   `https://leadsheets.dk/login`.
+   `https://leadsheets.dk/sheets`.

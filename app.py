@@ -15,13 +15,12 @@ import user_store
 
 
 def _secrets(name: str) -> list[str]:
-    """A comma-separated env var as a list, e.g. VIEWER_PASSWORD="a,b" lets
+    """A comma-separated env var as a list, e.g. ADMIN_PASSWORD="a,b" lets
     either password in."""
     return [p.strip() for p in os.environ.get(name, "").split(",") if p.strip()]
 
 
 ADMIN_PASSWORDS = _secrets("ADMIN_PASSWORD")
-VIEWER_PASSWORDS = _secrets("VIEWER_PASSWORD")
 # One token per site that reads the archive (e.g. the James Band intern app).
 API_TOKENS = _secrets("API_TOKEN")
 SESSION_SECRET = os.environ["SESSION_SECRET"]
@@ -77,32 +76,35 @@ def require_admin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Only the admin can change the archive.")
 
 
+def _archive(request: Request) -> list[dict]:
+    """The archive's sheets, or none: only the admin may see the archive."""
+    return sheets.list_leadsheets() if is_admin(request) else []
+
+
+def _archive_sheet(request: Request, leadsheet_id: str) -> dict:
+    # A 404 for everyone else, so they can't tell which sheets exist.
+    if not is_admin(request):
+        raise HTTPException(status_code=404)
+    try:
+        return sheets.get_leadsheet(leadsheet_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+
+
 def _json(data) -> str:
     """JSON safe to put inside a <script> tag."""
     return json.dumps(data).replace("</", "<\\/")
 
 
 @app.middleware("http")
-async def require_login(request: Request, call_next):
-    path = request.url.path
-    open_path = (
-        path == "/login"
-        or path == "/robots.txt"
-        or path.startswith("/static/")
-        or path.startswith("/api/")
-    )
-    if not open_path and not role(request):
-        response = RedirectResponse("/login")
-    else:
-        response = await call_next(request)
-    # Private until publishing is allowed: keep search engines out.
-    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+async def hide_login(request: Request, call_next):
+    # The site is public; only the admin's login page stays out of search.
+    response = await call_next(request)
+    if request.url.path == "/login":
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
 
 
-# Added after the decorator-based middleware above so it ends up outermost in
-# the stack (Starlette wraps in reverse add-order) — request.session must be
-# populated before require_login() reads it.
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
@@ -113,7 +115,7 @@ app.add_middleware(
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots():
-    return "User-agent: *\nDisallow: /\n"
+    return "User-agent: *\nDisallow: /login\n"
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -125,8 +127,6 @@ async def login_form(request: Request):
 async def login(request: Request, password: str = Form(...)):
     if _matches(password, ADMIN_PASSWORDS):
         request.session["role"] = "admin"
-    elif _matches(password, VIEWER_PASSWORDS):
-        request.session["role"] = "viewer"
     else:
         return templates.TemplateResponse(
             request, "login.html", {"error": "Wrong password"}, status_code=401
@@ -137,7 +137,7 @@ async def login(request: Request, password: str = Form(...)):
 @app.post("/logout")
 async def logout(request: Request):
     request.session.clear()
-    return RedirectResponse("/login", status_code=303)
+    return RedirectResponse("/sheets", status_code=303)
 
 
 @app.get("/")
@@ -147,8 +147,13 @@ async def home():
 
 @app.get("/sheets", response_class=HTMLResponse)
 async def sheets_page(request: Request):
+    # Everyone's own sheets are drawn by the page (static/user-store.js); the
+    # archive is the admin's alone.
+    archive = _archive(request)
     return templates.TemplateResponse(
-        request, "sheets.html", {"sheets": sheets.list_leadsheets()}
+        request,
+        "sheets.html",
+        {"sheets": archive, "archive_ids_json": _json([s["id"] for s in archive])},
     )
 
 
@@ -173,18 +178,12 @@ async def sheets_create(request: Request):
 
 @app.get("/sheets/{leadsheet_id}", response_class=HTMLResponse)
 async def sheet_page(request: Request, leadsheet_id: str):
-    try:
-        sheet = sheets.get_leadsheet(leadsheet_id)
-    except KeyError:
-        raise HTTPException(status_code=404)
-    admin = is_admin(request)
+    sheet = _archive_sheet(request, leadsheet_id)
     config = {
-        "canEdit": admin,
-        # Anyone may copy an archive sheet into their own version (kept in
-        # their browser, see static/user-store.js).
+        "canEdit": True,
         "canCopy": True,
-        # The admin sees where it lives (the Saved in box).
-        "canMove": admin,
+        # The Saved in box.
+        "canMove": True,
         "storage": "server",
         "saveUrl": f"/sheets/{sheet['id']}",
         "deleteUrl": f"/sheets/{sheet['id']}/delete",
@@ -198,12 +197,9 @@ async def sheet_page(request: Request, leadsheet_id: str):
 
 
 @app.get("/sheets/{leadsheet_id}/json")
-async def sheet_json(leadsheet_id: str):
+async def sheet_json(request: Request, leadsheet_id: str):
     # The whole sheet, for the setlist page to draw into its PDF.
-    try:
-        sheet = sheets.get_leadsheet(leadsheet_id)
-    except KeyError:
-        raise HTTPException(status_code=404)
+    sheet = _archive_sheet(request, leadsheet_id)
     return JSONResponse(sheet, headers={"Cache-Control": "no-store"})
 
 
@@ -236,7 +232,7 @@ async def setlist_page(request: Request):
     # archive sheet when making the PDF.
     catalog = [
         {"id": s["id"], "title": s["title"], "artist": s.get("artist", ""), "key": s.get("key", "")}
-        for s in sheets.list_leadsheets()
+        for s in _archive(request)
     ]
     sheet = {"id": "", "title": "", "artist": "", "key": "", "elements": []}
     return templates.TemplateResponse(
@@ -246,12 +242,10 @@ async def setlist_page(request: Request):
     )
 
 
-@app.get("/new", response_class=HTMLResponse)
-async def new_page(request: Request):
-    # The archive's ids, so versions whose original was deleted from it turn
-    # into sheets of their own.
-    archive_ids = [s["id"] for s in sheets.list_leadsheets()]
-    return templates.TemplateResponse(request, "new.html", {"archive_ids_json": _json(archive_ids)})
+@app.get("/new")
+async def new_page():
+    # Create New used to be a page of its own; it now opens the editor.
+    return RedirectResponse("/draft?mode=edit#new")
 
 
 @app.get("/draft", response_class=HTMLResponse)
@@ -259,15 +253,18 @@ async def draft_page(request: Request):
     # The sheet itself lives in the browser (localStorage); the page loads it
     # from the id in the URL's #fragment.
     # The admin may move it into the archive (a version replaces its original).
-    config = {"canEdit": True, "canMove": is_admin(request), "storage": "local", "afterDeleteUrl": "/new"}
-    archive_ids = [s["id"] for s in sheets.list_leadsheets()]
+    config = {"canEdit": True, "canMove": is_admin(request), "storage": "local", "afterDeleteUrl": "/sheets"}
+    # The archive's ids, so versions whose original was deleted from it (or,
+    # for everyone but the admin, all versions of archive sheets) turn into
+    # sheets of their own.
+    archive_ids = [s["id"] for s in _archive(request)]
     return templates.TemplateResponse(
         request, "draft.html", {"config_json": _json(config), "archive_ids_json": _json(archive_ids)}
     )
 
 
 # ── The admin's own sheets and setlists ───────────────────────────────
-# Viewers keep theirs in the browser; the admin's are kept here, so they're
+# Everyone else keeps theirs in the browser; the admin's are kept here, so they're
 # the same on every device. static/user-store.js calls these.
 ADMIN_USER = "admin"
 

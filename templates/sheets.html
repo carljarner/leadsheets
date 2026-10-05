@@ -2,16 +2,30 @@
 {% block title %}Lead Sheets{% endblock %}
 {% block container_class %}container--full{% endblock %}
 {% block content %}
+{% set admin = request.session.get('role') == 'admin' %}
 <div class="setlists-toolbar leadsheets-toolbar">
   <h1>Lead Sheets</h1>
-  {% if sheets %}
-  <input type="search" id="sheet-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search lead sheets" autocomplete="off" />
-  {% endif %}
+  <input type="search" id="sheet-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search lead sheets" autocomplete="off" hidden />
 </div>
 
+{% if not admin %}
+<div class="local-note">
+  <p class="muted">Your sheets are saved in this browser only. Export a backup to keep them safe or to move them to another device.</p>
+  <div class="local-note__actions">
+    <button type="button" id="backup-export" class="btn-small">Export backup</button>
+    <button type="button" id="backup-import" class="btn-small">Import</button>
+  </div>
+</div>
+{% endif %}
+
+<span id="drafts-count" class="muted"></span>
+<ul id="drafts-list" class="setlist-cards"></ul>
+<p id="drafts-empty" class="muted" hidden>No sheets yet. <a href="/draft?mode=edit#new">Create New</a> to make one.</p>
+
+{% if admin %}
+<h2>Archive</h2>
 {% if sheets %}
 <span class="muted">{{ sheets|length }} song{{ "" if sheets|length == 1 else "s" }}</span>
-
 <ul class="setlist-cards">
   {% for sheet in sheets %}
   <li class="setlist-card leadsheet-card" data-search="{{ (sheet.title ~ ' ' ~ (sheet.artist or '')) | lower }}">
@@ -24,28 +38,87 @@
   </li>
   {% endfor %}
 </ul>
-<p id="sheet-search-empty" class="muted" hidden>No lead sheets match your search.</p>
 {% else %}
 <p class="muted">No lead sheets in the archive yet.</p>
 {% endif %}
+{% endif %}
+<p id="sheet-search-empty" class="muted" hidden>No lead sheets match your search.</p>
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/user-store.js?v={{ static_version }}"></script>
 <script>
+  const store = window.leadsheetStore;
+  const archiveIds = {{ archive_ids_json|safe }};
   const sheetSearch = document.getElementById('sheet-search');
-  if (sheetSearch) {
-    const cards = [...document.querySelectorAll('.leadsheet-card')];
-    const empty = document.getElementById('sheet-search-empty');
-    sheetSearch.addEventListener('input', () => {
-      const terms = sheetSearch.value.toLowerCase().split(/\s+/).filter(Boolean);
-      let shown = 0;
-      for (const card of cards) {
-        const match = terms.every(t => card.dataset.search.includes(t));
-        card.hidden = !match;
-        if (match) shown++;
+
+  // The user's own sheets: drafts, and versions made with Customize.
+  // Rendered on every pageshow, not just load: coming Back from the editor
+  // can restore this page from the back/forward cache with a stale list.
+  async function renderDrafts() {
+    await store.forgetLostOriginals(archiveIds);
+    const drafts = await store.list('sheets');
+    const titles = new Map(drafts.map(d => [d.id, d.title]));
+    const list = document.getElementById('drafts-list');
+    list.replaceChildren();
+    for (const draft of drafts) {
+      const li = document.createElement('li');
+      li.className = 'setlist-card leadsheet-card';
+      li.dataset.search = `${draft.title} ${draft.artist || ''}`.toLowerCase();
+      const a = document.createElement('a');
+      a.className = 'leadsheet-card__link';
+      a.href = `/draft?mode=edit#${encodeURIComponent(draft.id)}`;
+      const head = document.createElement('div');
+      head.className = 'setlist-card__header';
+      const title = document.createElement('span');
+      title.textContent = draft.title;
+      head.appendChild(title);
+      a.appendChild(head);
+      if (draft.artist) {
+        const artist = document.createElement('div');
+        artist.className = 'leadsheet-card__artist';
+        artist.textContent = draft.artist;
+        a.appendChild(artist);
       }
-      empty.hidden = shown > 0;
-    });
+      if (draft.based_on) {
+        const tag = document.createElement('div');
+        tag.className = 'leadsheet-card__version';
+        const b = draft.based_on;
+        tag.textContent = `Version of ${(b.source === 'local' && titles.get(b.id)) || b.title || 'another sheet'}`;
+        a.appendChild(tag);
+      }
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+    const count = document.getElementById('drafts-count');
+    count.textContent = drafts.length ? `${drafts.length} sheet${drafts.length === 1 ? '' : 's'}` : '';
+    count.hidden = !drafts.length;
+    document.getElementById('drafts-empty').hidden = drafts.length > 0;
+    sheetSearch.hidden = !document.querySelector('.leadsheet-card');
+    filter();
+  }
+
+  function filter() {
+    const terms = sheetSearch.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0, total = 0;
+    for (const card of document.querySelectorAll('.leadsheet-card')) {
+      const match = terms.every(t => card.dataset.search.includes(t));
+      card.hidden = !match;
+      total++;
+      if (match) shown++;
+    }
+    document.getElementById('sheet-search-empty').hidden = !total || shown > 0;
+  }
+  sheetSearch.addEventListener('input', filter);
+
+  window.addEventListener('pageshow', renderDrafts);
+  // Only visitors have backup buttons: the admin's sheets are on the server.
+  if (document.getElementById('backup-export')) {
+    store.wireBackupButtons(
+      document.getElementById('backup-export'),
+      document.getElementById('backup-import'),
+      renderDrafts,
+    );
   }
 </script>
 {% endblock %}
