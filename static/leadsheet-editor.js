@@ -105,6 +105,14 @@
       cells: Array.from({ length: count }, () => ({ type: 'rest', duration: unit })),
     };
   }
+  // A slot can be longer than the group's own note: a quarter in an 8th
+  // triplet takes two of its three places. Where each slot starts and how
+  // many places it covers, plus the group's number (the places in all).
+  function tupletSlots(cell) {
+    let at = 0;
+    const slots = cell.cells.map(sub => { const s = { start: at, span: sub.duration / cell.unit }; at += s.span; return s; });
+    return { slots, places: at };
+  }
   // A note staff holds up to STAFF_MAX_BARS bars sharing one time signature;
   // its flat `cells` list runs bar after bar and no cell crosses a barline.
   // A fresh rhythm bar or staff is filled with one rest per beat (not 16ths):
@@ -2206,8 +2214,9 @@
     return { runs, runOf };
   }
 
-  // Draws one tuplet group inside a rhythm bar: `cell.cells.length` (3, in
-  // v1) equal-width slots spanning `[x, x+w)`, each with its own hit-rect
+  // Draws one tuplet group inside a rhythm bar: its places (3 for a
+  // triplet) as equal widths spanning `[x, x+w)`, a slot as wide as the
+  // places it covers (see tupletSlots), each with its own hit-rect
   // wired the same way a plain cell's is -- a drag still moves the whole
   // bar, a click opens that slot's own restricted menu via
   // `onSlotClick(subIdx, clientX, clientY)`. Beamed together (with a plain
@@ -2215,24 +2224,25 @@
   // bracketed (with a "3" in its gap) otherwise -- a quarter-note triplet
   // is never beam-eligible, and a beam is never drawn over a rest.
   function renderTupletGroupRhythm(container, cell, x, w, y, h, onSlotClick, onCellDrag, moveEl) {
-    const n = cell.cells.length;
-    const slotW = w / n;
+    const { slots, places: n } = tupletSlots(cell);
+    const placeW = w / n;
     const headW = h * 0.33;
     const stemLen = h * 0.68;
     const beamThick = h * 0.16;
     const beamY = y - stemLen;
-    const slotX = k => x + k * slotW;
+    const slotX = k => x + slots[k].start * placeW;
+    const slotW = k => slots[k].span * placeW;
 
     if (onSlotClick) {
       cell.cells.forEach((sub, k) => {
-        const hit = svgRect(slotX(k), beamY - beamThick - 4, slotW, (y - beamY) + beamThick + h * 0.9, { cls: 'el-rhythm-cell-hit' });
+        const hit = svgRect(slotX(k), beamY - beamThick - 4, slotW(k), (y - beamY) + beamThick + h * 0.9, { cls: 'el-rhythm-cell-hit' });
         container.appendChild(hit);
         if (onCellDrag) wireDragAndClick(hit, onCellDrag, () => onSlotClick(k), moveEl);
         else hit.addEventListener('click', () => onSlotClick(k));
       });
     }
 
-    const beamed = cell.cells.every(sub => sub.type === 'note') && BEAM_ELIGIBLE_DURATIONS.has(cell.unit);
+    const beamed = cell.cells.every(sub => sub.type === 'note' && sub.duration === cell.unit) && BEAM_ELIGIBLE_DURATIONS.has(cell.unit);
     if (beamed) {
       const stemXs = [];
       cell.cells.forEach((sub, k) => {
@@ -2254,7 +2264,7 @@
       cell.cells.forEach((sub, k) => {
         const nx = slotX(k);
         if (sub.type === 'rest') {
-          container.appendChild(svgText(rhythmCellGlyph(sub), nx + slotW / 2, y - h * 0.05, { cls: 'el-glyph-text', anchor: 'middle', size: h }));
+          container.appendChild(svgText(rhythmCellGlyph(sub), nx + slotW(k) / 2, y - h * 0.05, { cls: 'el-glyph-text', anchor: 'middle', size: h }));
         } else {
           drawSingleNote(container, nx, y, sub, h, headW, stemLen);
         }
@@ -2317,8 +2327,9 @@
       cellBoxes[i] = { x: cellX, w: cellW };
 
       if (cell.type === 'tuplet') {
-        const sw = cellW / cell.cells.length;
-        cellBoxes[i].subs = cell.cells.map((_, k) => ({ x: cellX + k * sw, w: sw }));
+        const { slots, places } = tupletSlots(cell);
+        const pw = cellW / places;
+        cellBoxes[i].subs = slots.map(sl => ({ x: cellX + sl.start * pw, w: sl.span * pw }));
         renderTupletGroupRhythm(container, cell, cellX, cellW, y, h,
           onCellClick ? subIdx => onCellClick(i, subIdx) : null, onCellDrag, moveEl);
         return;
@@ -2563,8 +2574,8 @@
   }
 
   // Sibling of renderTupletGroupRhythm: draws one tuplet group on the note
-  // staff -- `cell.cells.length` (3, in v1) equal-width slots spanning
-  // `[x, x+w)`, with real pitched noteheads (ledger lines, accidentals, a
+  // staff -- its places as equal widths spanning `[x, x+w)`, a slot as
+  // wide as the places it covers (see tupletSlots), with real pitched noteheads (ledger lines, accidentals, a
   // stem direction from each note's own pitch) instead of the rhythm
   // tool's slashes. Handles its own hit-testing too, each slot exactly like
   // a plain cell (see wireStaffCellHit), routing back through
@@ -2572,23 +2583,26 @@
   // tuplet's own index in the outer `cells`.
   function renderTupletGroupStaff(container, cell, x, w, el, callbacks, i, showsAccidental = () => true) {
     const subCells = cell.cells;
-    const n = subCells.length;
-    const slotW = w / n;
+    const { slots, places: n } = tupletSlots(cell);
+    const placeW = w / n;
     const noteSize = el.h * 0.65;
     const stemLen = el.h * 0.68;
     const beamThick = el.h * 0.12;
     const stemHalf = NOTESTAFF_STEM_W / 2;
     const midlineY = pitchToY(4, el);
 
-    const slotX = k => x + k * slotW;
-    const cx = k => slotX(k) + slotW / 2;
+    const slotX = k => x + slots[k].start * placeW;
+    const slotW = k => slots[k].span * placeW;
+    // A note sits in its first place (as a plain note sits at its cell's
+    // start); a rest is centred in all of them.
+    const cx = k => slotX(k) + (subCells[k].type === 'rest' ? slotW(k) : placeW) / 2;
     const pitchOf = k => (subCells[k].pitch != null ? subCells[k].pitch : STAFF_DEFAULT_PITCH);
     const halfWOf = k => noteheadHalfW(subCells[k].duration, noteSize);
     const stemXOf = (k, up) => cx(k) + (up ? 1 : -1) * (halfWOf(k) - stemHalf);
     const sel = k => (callbacks.selected && callbacks.selected(i, k) ? ' is-cell-selected' : '');
 
     subCells.forEach((sub, k) => {
-      wireStaffCellHit(container, el, callbacks, sub, i, k, slotX(k), slotW, cx(k), pitchOf(k), halfWOf(k));
+      wireStaffCellHit(container, el, callbacks, sub, i, k, slotX(k), slotW(k), cx(k), pitchOf(k), halfWOf(k));
     });
 
     subCells.forEach((sub, k) => {
@@ -2614,7 +2628,7 @@
     // beam-eligible, and any group containing a rest falls back to individual
     // stems/flags plus a bracket (with the number in its gap) -- same choice
     // as the rhythm tool.
-    const beamed = subCells.every(sub => sub.type === 'note') && BEAM_ELIGIBLE_DURATIONS.has(cell.unit);
+    const beamed = subCells.every(sub => sub.type === 'note' && sub.duration === cell.unit) && BEAM_ELIGIBLE_DURATIONS.has(cell.unit);
     // Per slot, which way its stem points (a tie bows the other way) and
     // where it ends (what a slur over it has to clear).
     const stems = [];
@@ -2725,8 +2739,12 @@
     const cellBoxes = cells.map((cell, i) => {
       const bx = x + positionsPx[i], bw = cellWidths[i];
       if (cell.type !== 'tuplet') return { x: bx, w: bw, cx: cell.type === 'rest' ? restCx(i) : noteCx(i) };
-      const sw = bw / cell.cells.length;
-      return { x: bx, w: bw, cx: bx + bw / 2, subs: cell.cells.map((_, k) => ({ x: bx + k * sw, w: sw, cx: bx + (k + 0.5) * sw })) };
+      const { slots, places } = tupletSlots(cell);
+      const pw = bw / places;
+      return { x: bx, w: bw, cx: bx + bw / 2, subs: slots.map((sl, k) => ({
+        x: bx + sl.start * pw, w: sl.span * pw,
+        cx: bx + sl.start * pw + (cell.cells[k].type === 'rest' ? sl.span * pw : pw) / 2,
+      })) };
     });
 
     if (callbacks.onMove) {
@@ -3390,14 +3408,41 @@
   }
 
   // A plain cell's new length, if it fits before the barline. A tuplet
-  // slot's length is fixed (it's what keeps the group adding up).
+  // slot's goes through setTupletSlotDuration.
   function setCellDuration(el, addr, duration) {
-    if (addr.subIdx != null) return false;
+    if (addr.subIdx != null) return setTupletSlotDuration(el, addr, duration);
     const cell = el.cells[addr.idx];
     if (!cell || cell.type === 'tuplet') return false;
     if (!(cell.type === 'rest' ? REST_DURATIONS : NOTE_DURATIONS).includes(duration)) return false;
     if (duration > roomInBar(el, addr.idx)) return false;
     if (duration !== cell.duration) el.cells = replaceCellKeeping(el.cells, addr.idx, { type: cell.type, duration }, el.type === 'notestaff' ? el : null);
+    return true;
+  }
+  // A tuplet slot's new length, in the group's own note values: a quarter in
+  // an 8th triplet covers two places, taking over whatever was in the next
+  // one, and going back to an 8th leaves a rest there. The group's total
+  // stays the same, so the length has to be a whole number of places (not
+  // dotted) that fits before the group's end.
+  function setTupletSlotDuration(el, addr, duration) {
+    const tuplet = el.cells[addr.idx];
+    const sub = tuplet && tuplet.type === 'tuplet' && tuplet.cells[addr.subIdx];
+    if (!sub || duration % tuplet.unit || UNDOTTED[duration]) return false; // a dot isn't drawn inside a tuplet
+    if (!(sub.type === 'rest' ? REST_DURATIONS : NOTE_DURATIONS).includes(duration)) return false;
+    const unit = tuplet.unit;
+    const restsFor = (from, to) => Array.from({ length: Math.max(0, (to - from) / unit) }, () => ({ type: 'rest', duration: unit }));
+    const start = cellStart(tuplet.cells, addr.subIdx);
+    const end = start + duration;
+    if (end > cellStart(tuplet.cells, tuplet.cells.length)) return false;
+    if (duration === sub.duration) return true;
+    const after = restsFor(end, start + sub.duration); // what a shorter slot leaves behind
+    let pos = start + sub.duration;
+    tuplet.cells.slice(addr.subIdx + 1).forEach(c => {
+      if (pos >= end) after.push(c);
+      else after.push(...restsFor(end, pos + c.duration)); // the part of a swallowed slot that sticks out
+      pos += c.duration;
+    });
+    tuplet.cells = [...tuplet.cells.slice(0, addr.subIdx), { ...sub, duration }, ...after];
+    dropDanglingTies(el.cells);
     return true;
   }
   function dotToggled(duration) { return DOTTED[duration] || UNDOTTED[duration] || null; }
@@ -3416,7 +3461,7 @@
     };
     if (addr.subIdx != null) {
       if (cell.cells[addr.subIdx].type === 'rest') wholeCellToRests();
-      else cell.cells[addr.subIdx] = carryChord(cell.cells[addr.subIdx], { type: 'rest', duration: cell.unit });
+      else cell.cells[addr.subIdx] = carryChord(cell.cells[addr.subIdx], { type: 'rest', duration: cell.cells[addr.subIdx].duration });
       dropDanglingTies(el.cells);
       return true;
     }
@@ -4613,9 +4658,9 @@
   }
   function selectedDuration() {
     const c = cellAt(staffEditor.el, staffEditor.sel);
-    return c && staffEditor.sel.subIdx == null ? c.duration : null;
+    return c ? c.duration : null;
   }
-  const NO_ROOM = "That length doesn't fit before the barline (a tuplet's notes can't change length)";
+  const NO_ROOM = "That length doesn't fit before the barline (or, in a tuplet, before the tuplet's end)";
   function pickDuration(d) { editSelected((el, sel) => setCellDuration(el, sel, d), NO_ROOM); }
   function durationStep(fn, why) {
     const d = selectedDuration();
