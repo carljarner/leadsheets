@@ -834,7 +834,17 @@
   }
   function storeChord(text) {
     const t = transposeState;
+    text = chordTriangle(text);
     return respelled() ? transposeChordText(text, -t.semitones, keyPrefersFlats(model.key)) : text;
+  }
+  // MuseScore's shorthand for the major-7 triangle: "t" or "^" right after
+  // the root (or its minor "m" / "-"), so Ft7 is stored as F△7, Fmt7 as Fm△7
+  // and F^ as F△. Stored as a plain △ (the read API shows it too); drawn
+  // with the chord font's own triangle (see parseChordSegments).
+  function chordTriangle(text) {
+    const root = readChordRoot(text);
+    if (!root) return text;
+    return text.slice(0, root.length) + text.slice(root.length).replace(/^(m|-)?[t^](?=\d|\(|\/|$)/, '$1△');
   }
   // The key as it should read now: the sheet's own text until transposed.
   function transposedKeyName() {
@@ -946,6 +956,7 @@
   // note, smaller and dropped a little (Bb7/D -> B + ^b + ^7 + /D); `bassSup`
   // -- that bass note's own accidental, raised within the small run.
   // The stored text stays plain; this only affects how it's drawn.
+  const CHORD_TRIANGLE_GLYPH = '\uE18A'; // MuseJazz Text's csymMajorSeventh
   function parseChordSegments(text) {
     const s = String(text || '');
     const segs = [];
@@ -983,6 +994,9 @@
         push(s.slice(i), 'bass');
         break;
       }
+      // The major-7 triangle is raised with the number after it, in the
+      // chord font's own glyph (it has no plain △ or Δ).
+      if (/^[△Δ]/.test(rest)) { push(CHORD_TRIANGLE_GLYPH, 'sup'); i += 1; continue; }
       // "o" is the diminished sign (Ao7); not the o of a word like "Coda".
       let m = /^\([^)]*\)/.exec(rest) || /^o(?![A-Za-z])/.exec(rest) || /^[#b♯♭]?\d+(?:\/\d+)?/.exec(rest);
       // "+"/"-" only count as an alteration after a number ("7-9"); before one
