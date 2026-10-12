@@ -2269,7 +2269,8 @@
           drawSingleNote(container, nx, y, sub, h, headW, stemLen);
         }
       });
-      drawTupletBracket(container, x + w * 0.04, x + w * 0.96, beamY, -1, h * 0.12, h * 0.55, n);
+      // Clear of the stem tips (and its ticks with it), not on them.
+      drawTupletBracket(container, x + w * 0.04, x + w * 0.96, beamY - h * 0.3, -1, h * 0.12, h * 0.55, n);
     }
   }
 
