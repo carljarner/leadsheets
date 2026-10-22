@@ -259,6 +259,12 @@ async def draft_page(request: Request):
     # from the id in the URL's #fragment.
     # The admin may move it into the archive (a version replaces its original).
     config = {"canEdit": True, "canMove": is_admin(request), "storage": "local", "afterDeleteUrl": "/sheets"}
+    if is_admin(request):
+        # The admin's drafts have Arrangements, deleted with them: files per draft id.
+        config["arrangementFiles"] = {
+            sheet_id: sum(len(f["files"]) for f in folders)
+            for sheet_id, folders in arrangements.list_all().items()
+        }
     # The archive's ids, so versions whose original was deleted from it (or,
     # for everyone but the admin, all versions of archive sheets) turn into
     # sheets of their own.
@@ -268,15 +274,40 @@ async def draft_page(request: Request):
     )
 
 
-# ── Arrangements: sheet music for each archive sheet ──────────────────
+# ── Arrangements: sheet music for each of the admin's sheets ──────────
 # The admin's alone, like the archive: a 404 for everyone else. Every
-# archive sheet has a card; its files sit in named folders (arrangements.py).
+# archive sheet and draft has a card; its files sit in named folders
+# (arrangements.py).
+
+def _drafts() -> list[dict]:
+    return user_store.list_docs(ADMIN_USER, "sheets")
+
+
+def _arrangement_sheet(request: Request, sheet_id: str) -> None:
+    """Only the admin's sheets, archive or draft, have arrangements."""
+    if not is_admin(request):
+        raise HTTPException(status_code=404)
+    try:
+        sheets.get_leadsheet(sheet_id)
+        return
+    except KeyError:
+        pass
+    try:
+        user_store.get_doc(ADMIN_USER, "sheets", sheet_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+
 
 @app.get("/arrangements", response_class=HTMLResponse)
 async def arrangements_page(request: Request):
     if not is_admin(request):
         raise HTTPException(status_code=404)
-    catalog = [{"id": s["id"], "title": s["title"], "artist": s.get("artist", "")} for s in _archive(request)]
+
+    def entry(sheet: dict, draft: bool) -> dict:
+        return {"id": sheet["id"], "title": sheet.get("title") or "Untitled", "artist": sheet.get("artist", ""), "draft": draft}
+
+    drafts = sorted(_drafts(), key=lambda d: (d.get("title") or "Untitled").casefold())
+    catalog = [entry(d, True) for d in drafts] + [entry(s, False) for s in _archive(request)]
     return templates.TemplateResponse(
         request,
         "arrangements.html",
@@ -292,9 +323,25 @@ def _arrangement_error(exc: Exception) -> Response:
     return Response(content=str(exc), status_code=400)
 
 
+@app.post("/arrangements/{sheet_id}/move")
+async def arrangement_move(sheet_id: str, request: Request):
+    # A draft moved into the archive (as {"to": <archive id>}) takes its
+    # arrangements along; called before the draft itself is deleted.
+    require_admin(request)
+    try:
+        user_store.get_doc(ADMIN_USER, "sheets", sheet_id)
+        target = sheets.get_leadsheet(str((await _read_json(request)).get("to", "")))["id"]
+    except KeyError:
+        raise HTTPException(status_code=404)
+    except (ValueError, TypeError) as exc:
+        return _arrangement_error(exc)
+    arrangements.move(sheet_id, target)
+    return Response(status_code=204)
+
+
 @app.post("/arrangements/{sheet_id}/folders")
 async def arrangement_folder_add(sheet_id: str, request: Request):
-    _archive_sheet(request, sheet_id)  # only archive sheets have arrangements
+    _arrangement_sheet(request, sheet_id)
     try:
         return arrangements.add_folder(sheet_id, (await _read_json(request)).get("name"))
     except (ValueError, TypeError) as exc:
@@ -303,7 +350,7 @@ async def arrangement_folder_add(sheet_id: str, request: Request):
 
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}")
 async def arrangement_folder_rename(sheet_id: str, folder_id: str, request: Request):
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     try:
         return arrangements.rename_folder(sheet_id, folder_id, (await _read_json(request)).get("name"))
     except KeyError:
@@ -314,7 +361,7 @@ async def arrangement_folder_rename(sheet_id: str, folder_id: str, request: Requ
 
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}/delete")
 async def arrangement_folder_delete(sheet_id: str, folder_id: str, request: Request):
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     try:
         arrangements.delete_folder(sheet_id, folder_id)
     except KeyError:
@@ -325,7 +372,7 @@ async def arrangement_folder_delete(sheet_id: str, folder_id: str, request: Requ
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}/files")
 async def arrangement_file_add(sheet_id: str, folder_id: str, request: Request):
     # The file is the raw body; its name (with the extension) is ?name=.
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     too_large = f"The file is too large (max {arrangements.MAX_FILE_BYTES // (1024 * 1024)} MB)."
     try:
         declared = int(request.headers.get("content-length", "0"))
@@ -348,7 +395,7 @@ async def arrangement_file_add(sheet_id: str, folder_id: str, request: Request):
 
 @app.get("/arrangements/{sheet_id}/files/{file_id}")
 async def arrangement_file_get(sheet_id: str, file_id: str, request: Request):
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     try:
         record, path = arrangements.get_file(sheet_id, file_id)
     except KeyError:
@@ -367,7 +414,7 @@ async def arrangement_file_get(sheet_id: str, file_id: str, request: Request):
 
 @app.post("/arrangements/{sheet_id}/files/{file_id}")
 async def arrangement_file_rename(sheet_id: str, file_id: str, request: Request):
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     try:
         return arrangements.rename_file(sheet_id, file_id, (await _read_json(request)).get("name"))
     except KeyError:
@@ -378,7 +425,7 @@ async def arrangement_file_rename(sheet_id: str, file_id: str, request: Request)
 
 @app.post("/arrangements/{sheet_id}/files/{file_id}/delete")
 async def arrangement_file_delete(sheet_id: str, file_id: str, request: Request):
-    _archive_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id)
     try:
         arrangements.delete_file(sheet_id, file_id)
     except KeyError:
@@ -433,6 +480,8 @@ async def me_delete(kind: str, doc_id: str, request: Request):
         user_store.delete_doc(ADMIN_USER, kind, doc_id)
     except KeyError:
         raise HTTPException(status_code=404)
+    if kind == "sheets":
+        arrangements.delete_sheet(doc_id)
     return Response(status_code=204)
 
 

@@ -5599,8 +5599,10 @@
   });
 
   document.getElementById('delete-btn').addEventListener('click', async () => {
-    // An archive sheet's Arrangements go with it.
-    const files = config.arrangementFiles || 0;
+    // The admin's sheets' Arrangements go with them: a count for an archive
+    // sheet, counts by id for the admin's drafts.
+    const files = (typeof config.arrangementFiles === 'object'
+      ? (config.arrangementFiles || {})[leadsheetId] : config.arrangementFiles) || 0;
     const detail = files ? `Its ${files} arrangement file${files === 1 ? '' : 's'} will be deleted too.` : '';
     if (!await askConfirm(`Delete "${model.title.trim() || 'Untitled'}"?`, 'Delete', { detail, danger: true })) return;
     if (config.storage === 'local') {
@@ -5662,6 +5664,18 @@
       if (!v.based_on || v.based_on.source !== 'local' || v.based_on.id !== leadsheetId) continue;
       const doc = await store.get('sheets', v.id);
       if (doc) await store.save('sheets', v.id, Object.assign(doc, { based_on: { id: archiveId, title: model.title, source: 'archive' } }));
+    }
+    // Its Arrangements follow it (before removing the draft, which deletes them).
+    const moved = await fetch(`/arrangements/${encodeURIComponent(leadsheetId)}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: archiveId }),
+    });
+    if (!moved.ok && moved.status !== 404) {
+      alert('It’s in the archive, but its arrangements couldn’t be moved: ' + ((await moved.text()) || moved.status));
+      dirty = false;
+      location.href = `/sheets/${encodeURIComponent(archiveId)}?mode=edit`;
+      return;
     }
     await store.remove('sheets', leadsheetId);
     dirty = false;

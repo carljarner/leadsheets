@@ -844,8 +844,11 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 .arr-icon-btn:hover { background: var(--surface-alt); color: var(--text); border-color: rgba(255,255,255,0.15); }
 .arr-icon-btn--danger:hover { color: var(--accent); border-color: var(--accent); }
 
-.arr-upload-bar { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
-.arr-new-folder { align-self: flex-start; margin-top: 0.25rem; }
+/* Round "+" buttons centred under the folders (new folder) and under a
+   folder's files (upload). */
+.arr-upload-bar { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; margin-top: 0.4rem; }
+.add-row-btn.arr-add { margin: 0.25rem auto 0; }
+.add-row-btn.arr-add--small { width: 28px; height: 28px; font-size: 1.05rem; margin: 0; }
 
 /* The modal: questions centred, form fields full width. */
 .modal-box.arr-modal--form { max-width: 440px; }
@@ -860,7 +863,6 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 @media (max-width: 600px) {
   .arr-cards { grid-template-columns: minmax(0, 1fr); }
   .arr-folder__body { padding-left: 0.75rem; }
-  .arr-drop-hint { display: none; }
 }
 
 /* ---------- Lead sheet editor ---------- */

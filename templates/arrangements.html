@@ -6,11 +6,17 @@
   <h1>Arrangements</h1>
   <input type="search" id="arr-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search arrangements" autocomplete="off" />
 </div>
-<p class="muted arr-hint">One card per archive sheet: add a sheet to the archive to get a new card. PDF and MuseScore files, up to {{ max_mb }} MB each.</p>
+<p class="muted arr-hint">One card per lead sheet: create a sheet to get a new card. A draft's arrangements follow it into the archive. PDF and MuseScore files, up to {{ max_mb }} MB each.</p>
 
-<span id="arr-count" class="muted"></span>
-<ul id="arr-list" class="setlist-cards arr-cards"></ul>
-<p id="arr-empty" class="muted" hidden>No lead sheets in the archive yet.</p>
+<h2 class="sheets-section-title">Drafts</h2>
+<span id="arr-drafts-count" class="muted"></span>
+<ul id="arr-drafts" class="setlist-cards arr-cards"></ul>
+<p id="arr-drafts-empty" class="muted" hidden>No drafts.</p>
+
+<h2 class="sheets-section-title">Archive</h2>
+<span id="arr-archive-count" class="muted"></span>
+<ul id="arr-archive" class="setlist-cards arr-cards"></ul>
+<p id="arr-archive-empty" class="muted" hidden>No lead sheets in the archive yet.</p>
 <p id="arr-search-empty" class="muted" hidden>No lead sheets match your search.</p>
 
 <div id="arr-modal" class="modal-overlay" hidden>

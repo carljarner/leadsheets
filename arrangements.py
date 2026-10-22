@@ -1,9 +1,10 @@
-"""Arrangements: sheet music (PDF / MuseScore) kept with each archive sheet,
-in named folders, so one song can hold several versions ("MatRevy 26 -
-0.5 op", "Big band", ...). The admin's alone, like the archive.
+"""Arrangements: sheet music (PDF / MuseScore) kept with each of the
+admin's sheets (archive and drafts), in named folders, so one song can hold
+several versions ("MatRevy 26 - 0.5 op", "Big band", ...). The admin's
+alone, like the archive.
 
-There is no card to create: every archive sheet has one, and its files go
-when the sheet is deleted. Per sheet:
+There is no card to create: every sheet has one. Its files go when the
+sheet is deleted, and follow a draft into the archive (move). Per sheet:
 
     DATA_DIR/arrangements/<sheet_id>/index.json   the folders and their files
     DATA_DIR/arrangements/<sheet_id>/<file_id>.<ext>
@@ -183,6 +184,34 @@ def delete_file(sheet_id: str, file_id: str) -> None:
         (_dir(sheet_id) / f"{record['id']}.{record['ext']}").unlink(missing_ok=True)
         folder["files"].remove(record)
         _write(sheet_id, index)
+
+
+def move(from_id: str, to_id: str) -> None:
+    """A draft's arrangements, when it moves into the archive as `to_id`.
+    A version replacing its original adds its folders to the original's;
+    a folder whose name is taken there gets " (2)", " (3)", ..."""
+    with _lock:
+        source = _read(from_id)
+        if not source["folders"]:
+            shutil.rmtree(_dir(from_id), ignore_errors=True)
+            return
+        target = _read(to_id)
+        taken = {f["name"].casefold() for f in target["folders"]}
+        for folder in source["folders"]:
+            name, n = folder["name"], 2
+            while name.casefold() in taken:
+                name = f"{folder['name']} ({n})"
+                n += 1
+            folder["name"] = name
+            taken.add(name.casefold())
+            for f in folder["files"]:
+                old = _dir(from_id) / f"{f['id']}.{f['ext']}"
+                if old.exists():
+                    _dir(to_id).mkdir(parents=True, exist_ok=True)
+                    old.replace(_dir(to_id) / old.name)
+            target["folders"].append(folder)
+        _write(to_id, target)
+        shutil.rmtree(_dir(from_id), ignore_errors=True)
 
 
 def delete_sheet(sheet_id: str) -> None:

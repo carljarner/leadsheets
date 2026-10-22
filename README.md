@@ -15,11 +15,13 @@ nothing links to.
   change as you like. If the original is deleted, its versions become
   sheets of their own. The admin also sees the **Archive** here. To
   everyone else, `/sheets/{id}` and `/sheets/{id}/json` return 404.
-- **Arrangements** (`/arrangements`, admin only): sheet music for each
-  archive sheet. Every archive sheet has a card (there is no other way to
-  make one): it links to the lead sheet, then holds named, collapsible
-  folders (e.g. "MatRevy 26 - 0.5 op") of PDF and MuseScore files, up to
-  15 MB each. Deleting the sheet deletes its arrangements.
+- **Arrangements** (`/arrangements`, admin only): sheet music for each of
+  the admin's sheets, drafts and archive. Every sheet has a card (there is
+  no other way to make one): it links to the lead sheet, then holds named,
+  collapsible folders (e.g. "MatRevy 26 - 0.5 op") of PDF and MuseScore
+  files, up to 15 MB each. A draft's arrangements follow it into the
+  archive (a version's are added to its original's), and deleting a sheet
+  deletes its arrangements.
 - **Create New** (`/draft?mode=edit#new`): the editor, straight away.
   (`/new` redirects there.)
   - **Admin** can switch any archive sheet into Edit mode to save or

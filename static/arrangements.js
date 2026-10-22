@@ -1,9 +1,9 @@
 /* Arrangements (arrangements.html): sheet music for each archive sheet,
    ported from MatRevy's Bandet -> Arkiv tab.
 
-   One card per archive sheet, never made here: a new card comes with a new
-   archive sheet. An open card first links to the lead sheet (it opens in
-   Practice mode), then lists its folders ("MatRevy 26 - 0.5 op", ...), each
+   One card per lead sheet of the admin's (drafts, then the archive), never
+   made here: a new card comes with a new sheet. An open card first links
+   to the lead sheet (it opens in Practice mode), then lists its folders ("MatRevy 26 - 0.5 op", ...), each
    collapsible with its own files. Files go only in folders.
 
    The page gets the archive and every folder as JSON; each write answers
@@ -17,7 +17,10 @@
   const ALLOWED_EXTS = ['pdf', 'mscz', 'mscx'];
   const OPEN_KEY = 'arrangements-open';
 
-  const list = document.getElementById('arr-list');
+  const lists = {
+    drafts: document.getElementById('arr-drafts'),
+    archive: document.getElementById('arr-archive'),
+  };
   const search = document.getElementById('arr-search');
 
   // Open cards and folders, remembered in this browser.
@@ -171,17 +174,20 @@
 
   /* ---------- cards ---------- */
   function render() {
-    list.replaceChildren(...sheets.map(buildCard));
-    const count = document.getElementById('arr-count');
-    count.textContent = sheets.length ? `${sheets.length} song${sheets.length === 1 ? '' : 's'}` : '';
-    document.getElementById('arr-empty').hidden = sheets.length > 0;
+    for (const [section, ul] of Object.entries(lists)) {
+      const own = sheets.filter(s => !!s.draft === (section === 'drafts'));
+      ul.replaceChildren(...own.map(buildCard));
+      const noun = section === 'drafts' ? 'sheet' : 'song';
+      document.getElementById(`arr-${section}-count`).textContent = own.length ? `${own.length} ${noun}${own.length === 1 ? '' : 's'}` : '';
+      document.getElementById(`arr-${section}-empty`).hidden = own.length > 0;
+    }
     search.hidden = !sheets.length;
     filter();
   }
 
   function rerenderCard(sheetId) {
     const sheet = sheets.find(s => s.id === sheetId);
-    const node = list.querySelector(`.arr-card[data-id="${CSS.escape(sheetId)}"]`);
+    const node = document.querySelector(`.arr-card[data-id="${CSS.escape(sheetId)}"]`);
     if (sheet && node) node.replaceWith(buildCard(sheet));
   }
 
@@ -189,7 +195,7 @@
   function filter() {
     const terms = search.value.toLowerCase().split(/\s+/).filter(Boolean);
     let shown = 0;
-    for (const card of list.children) {
+    for (const card of document.querySelectorAll('.arr-card')) {
       card.hidden = !terms.every(t => card.dataset.search.includes(t));
       if (!card.hidden) shown++;
     }
@@ -229,15 +235,17 @@
     const sheetRow = mk('div', 'arr-sheet-row');
     sheetRow.appendChild(mk('span', 'arr-kind arr-kind--sheet', 'Chart'));
     const link = mk('a', 'arr-sheet-link', sheet.title);
-    link.href = `/sheets/${encodeURIComponent(sheet.id)}`;
+    link.href = sheet.draft ? `/draft#${encodeURIComponent(sheet.id)}` : `/sheets/${encodeURIComponent(sheet.id)}`;
     link.title = 'Open the lead sheet in Practice mode';
     sheetRow.appendChild(link);
     body.appendChild(sheetRow);
 
     for (const folder of folders(sheet.id)) body.appendChild(buildFolder(sheet, folder));
 
-    const newBtn = mk('button', 'btn-small arr-new-folder', '+ New folder');
+    const newBtn = mk('button', 'add-row-btn arr-add', '+');
     newBtn.type = 'button';
+    newBtn.title = 'New folder';
+    newBtn.setAttribute('aria-label', 'New folder');
     newBtn.addEventListener('click', () => newFolder(sheet));
     body.appendChild(newBtn);
     li.appendChild(body);
@@ -308,14 +316,15 @@
       input.value = '';
       if (picked.length) askUpload(sheet, folder, picked);
     });
-    const uploadBtn = mk('button', 'btn-small', 'Upload files');
+    const uploadBtn = mk('button', 'add-row-btn arr-add arr-add--small', '+');
     uploadBtn.type = 'button';
+    uploadBtn.title = 'Upload files (or drop them on the folder)';
+    uploadBtn.setAttribute('aria-label', 'Upload files');
     uploadBtn.disabled = uploadStatus.has(folder.id);
     uploadBtn.addEventListener('click', () => input.click());
     bar.appendChild(uploadBtn);
     bar.appendChild(input);
     if (uploadStatus.has(folder.id)) bar.appendChild(mk('span', 'muted', uploadStatus.get(folder.id)));
-    else bar.appendChild(mk('span', 'muted arr-drop-hint', 'or drop files here'));
     body.appendChild(bar);
     node.appendChild(body);
     return node;
