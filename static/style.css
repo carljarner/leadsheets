@@ -738,11 +738,11 @@ textarea:focus {
 
 /* ---------- Arrangements ---------- */
 .arr-hint { margin: 0.25rem 0 0.5rem; }
-.arr-cards { align-items: start; }
+/* Four to a row; an open card grows downward in place, like MatRevy's. */
+.arr-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
 .setlist-card.arr-card { padding: 0; }
 .setlist-card.arr-card[hidden] { display: none; }
-/* An open card takes the whole row, to fit its folders and files. */
-.arr-card--open { grid-column: 1 / -1; border-color: rgba(79,215,209,0.4); }
+.arr-card--open { border-color: rgba(79,215,209,0.4); }
 
 /* Card and folder heads are plain rows, not the app's outlined buttons. */
 .arr-card__head,
@@ -767,6 +767,8 @@ textarea:focus {
 .arr-folder__toggle:hover .arr-folder__name { color: var(--accent-2); }
 .arr-card__titles { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .arr-card__titles .leadsheet-card__artist { margin-top: 0; }
+.arr-card__titles .setlist-card__header { display: block; }
+.arr-ellipsis { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .arr-chevron { color: var(--text-dim); width: 0.8rem; flex-shrink: 0; }
 .arr-count { color: var(--text-dim); font-size: 0.78rem; white-space: nowrap; }
 
@@ -814,7 +816,7 @@ textarea:focus {
 .arr-folder__head { display: flex; align-items: center; padding-right: 0.4rem; }
 .arr-folder__toggle { padding: 0.5rem 0.75rem; flex: 1; min-width: 0; }
 .arr-folder__name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 0.92rem; }
-.arr-folder__body { padding: 0 0.75rem 0.6rem 2.15rem; }
+.arr-folder__body { padding: 0 0.6rem 0.6rem 1.4rem; }
 .arr-folder__empty { margin: 0 0 0.4rem; }
 .arr-file { border-top: 1px solid rgba(255,255,255,0.06); padding: 0.2rem 0; }
 .arr-file__name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; color: var(--text); }
@@ -853,7 +855,10 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 .arr-upload-item__file { overflow-wrap: anywhere; }
 .modal-box p.arr-modal-error { color: var(--accent); font-weight: 400; font-size: 0.85rem; margin: -0.3rem 0 1rem; }
 
+@media (max-width: 1100px) { .arr-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .arr-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
+  .arr-cards { grid-template-columns: minmax(0, 1fr); }
   .arr-folder__body { padding-left: 0.75rem; }
   .arr-drop-hint { display: none; }
 }

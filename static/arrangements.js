@@ -59,10 +59,6 @@
     return foldersBySheet[sheetId];
   }
 
-  function fileCount(sheetId) {
-    return folders(sheetId).reduce((n, f) => n + f.files.length, 0);
-  }
-
   function filesLabel(n) {
     return n === 1 ? '1 file' : `${n} files`;
   }
@@ -211,13 +207,14 @@
     head.type = 'button';
     head.setAttribute('aria-expanded', String(isOpen));
     head.appendChild(mk('span', 'arr-chevron', isOpen ? '▾' : '▸'));
+    // One line each, cut short with "…"; the full text shows on hover.
+    head.title = sheet.artist ? `${sheet.title} – ${sheet.artist}` : sheet.title;
     const titles = mk('span', 'arr-card__titles');
     const header = mk('span', 'setlist-card__header');
-    header.appendChild(mk('span', null, sheet.title));
+    header.appendChild(mk('span', 'arr-ellipsis', sheet.title));
     titles.appendChild(header);
-    if (sheet.artist) titles.appendChild(mk('span', 'leadsheet-card__artist', sheet.artist));
+    if (sheet.artist) titles.appendChild(mk('span', 'leadsheet-card__artist arr-ellipsis', sheet.artist));
     head.appendChild(titles);
-    head.appendChild(mk('span', 'arr-count', filesLabel(fileCount(sheet.id))));
     head.addEventListener('click', () => {
       if (open.cards.has(sheet.id)) open.cards.delete(sheet.id);
       else open.cards.add(sheet.id);
