@@ -163,7 +163,8 @@ async def sheets_page(request: Request):
     # Everyone's own sheets are drawn by the page (static/user-store.js); the
     # archive is for the admin and viewers, and viewers see the admin's drafts.
     archive = _archive(request)
-    shared_drafts = _drafts() if role(request) == "viewer" else []
+    # Versions live under their song (its Versions box), not as cards.
+    shared_drafts = [d for d in _drafts() if not d.get("based_on")] if role(request) == "viewer" else []
     return templates.TemplateResponse(
         request,
         "sheets.html",
@@ -349,7 +350,8 @@ async def arrangements_page(request: Request):
     def entry(sheet: dict, draft: bool) -> dict:
         return {"id": sheet["id"], "title": sheet.get("title") or "Untitled", "artist": sheet.get("artist", ""), "draft": draft}
 
-    catalog = [entry(d, True) for d in _drafts()] + [entry(s, False) for s in _archive(request)]
+    # Versions live under their song, so they get no card.
+    catalog = [entry(d, True) for d in _drafts() if not d.get("based_on")] + [entry(s, False) for s in _archive(request)]
     return templates.TemplateResponse(
         request,
         "arrangements.html",

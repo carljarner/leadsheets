@@ -481,38 +481,60 @@
     let searchTerms = [];
 
     // The user's own sheets first, under their own heading, then the archive.
+    // Versions (made with Customize) are listed each on its own, right under
+    // their song: "Song (MatRevy 26)".
     function renderPickList() {
       const chosen = new Set(songs.filter(s => s.type === 'song').map(rowKey));
       pickListEl.replaceChildren();
       const matches = sheet => {
-        const haystack = `${sheet.title} ${sheet.artist}`.toLowerCase();
+        const haystack = `${store.displayTitle(sheet)} ${sheet.artist}`.toLowerCase();
         return searchTerms.every(t => haystack.includes(t));
       };
+      const originalKey = b => `${b.source === 'local' ? 'local' : 'archive'}:${b.id}`;
+      const versionsOf = new Map();
+      for (const sheet of mine) {
+        const b = sheet.based_on;
+        if (!b || !(b.source === 'local' ? mineById.has(b.id) : byId.has(b.id))) continue;
+        const key = originalKey(b);
+        if (!versionsOf.has(key)) versionsOf.set(key, []);
+        versionsOf.get(key).push(sheet);
+      }
+      const isListedVersion = sheet => !!sheet.based_on && versionsOf.has(originalKey(sheet.based_on));
+      const addItem = (sheet, source, isVersion) => {
+        const li = document.createElement('li');
+        li.textContent = store.displayTitle(sheet);
+        if (isVersion) li.classList.add('pick-list__version');
+        if (sheet.artist) {
+          const artist = document.createElement('span');
+          artist.className = 'pick-list__artist';
+          artist.textContent = sheet.artist;
+          li.appendChild(artist);
+        }
+        const isChosen = chosen.has(rowKey({ source, id: sheet.id }));
+        li.classList.toggle('is-selected', isChosen);
+        if (!isChosen) li.addEventListener('click', () => addSong(sheet, source));
+        pickListEl.appendChild(li);
+      };
       const addGroup = (sheets, source, heading) => {
-        const shown = sheets.filter(matches);
-        if (heading && shown.length) {
+        const entries = [];
+        for (const sheet of sheets) {
+          const versions = (versionsOf.get(`${source || 'archive'}:${sheet.id}`) || []).filter(matches);
+          if (matches(sheet) || versions.length) entries.push([sheet, versions]);
+        }
+        if (heading && entries.length) {
           const li = document.createElement('li');
           li.className = 'pick-list__group';
           li.textContent = heading;
           pickListEl.appendChild(li);
         }
-        shown.forEach(sheet => {
-          const li = document.createElement('li');
-          li.textContent = sheet.title;
-          if (sheet.artist) {
-            const artist = document.createElement('span');
-            artist.className = 'pick-list__artist';
-            artist.textContent = sheet.artist;
-            li.appendChild(artist);
-          }
-          const isChosen = chosen.has(rowKey({ source, id: sheet.id }));
-          li.classList.toggle('is-selected', isChosen);
-          if (!isChosen) li.addEventListener('click', () => addSong(sheet, source));
-          pickListEl.appendChild(li);
+        entries.forEach(([sheet, versions]) => {
+          addItem(sheet, source, false);
+          versions.forEach(v => addItem(v, 'local', true));
         });
       };
-      addGroup(mine, 'local', mine.length ? 'Your sheets' : '');
-      addGroup(archive, undefined, mine.length ? 'Archive' : '');
+      const ownSheets = mine.filter(s => !isListedVersion(s));
+      addGroup(ownSheets, 'local', ownSheets.length ? 'Your sheets' : '');
+      addGroup(archive, undefined, ownSheets.length ? 'Archive' : '');
     }
 
     searchInput.addEventListener('input', () => {
@@ -612,8 +634,8 @@
 
         const titleTd = document.createElement('td');
         titleTd.className = 'title-cell';
-        titleTd.textContent = sheet.title;
-        titleTd.title = sheet.title;
+        titleTd.textContent = store.displayTitle(sheet);
+        titleTd.title = store.displayTitle(sheet);
         if (song.source === 'local') {
           const tag = document.createElement('span');
           tag.className = 'mine-tag';
@@ -646,7 +668,7 @@
         actionsTd.appendChild(delBtn);
         tr.appendChild(actionsTd);
 
-        wireRowDrag(tr, handleTd, song, sheet.title);
+        wireRowDrag(tr, handleTd, song, store.displayTitle(sheet));
         tbody.appendChild(tr);
       });
     }
@@ -772,7 +794,7 @@
       const fetched = await Promise.all(rows.map(async row => {
         if (row.source === 'local') {
           const sheet = await store.get('sheets', row.id);
-          if (!sheet) throw new Error(`"${sheetFor(row).title}" isn't saved any more`);
+          if (!sheet) throw new Error(`"${store.displayTitle(mineById.get(row.id))}" isn't saved any more`);
           return sheet;
         }
         const resp = await fetch(`/sheets/${encodeURIComponent(row.id)}/json`);
@@ -791,7 +813,7 @@
         const semitones = sheetKey ? semitonesTo(sheetKey, row.key) : 0;
         // How far it's moved, in whole tones like the menu ("1.5 ↑"); empty when not.
         const amount = semitones ? `${Math.abs(semitones) / 2} ${semitones > 0 ? '↑' : '↓'}` : '';
-        sets[sets.length - 1].push({ title: sheet.title, key: key || String(sheet.key || '').trim(), amount });
+        sets[sets.length - 1].push({ title: store.displayTitle(sheet), key: key || String(sheet.key || '').trim(), amount });
         const flats = sheetKey ? prefersFlats(keyList(sheetKey.minor).indexOf(row.key), sheetKey.minor) : false;
         pages.push({ sheet, semitones, flats });
       });

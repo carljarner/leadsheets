@@ -68,6 +68,7 @@
       <button type="button" id="print-btn" class="btn-small sheet-print">Print</button>
       <input type="text" id="sheet-title" class="editor-title-input" placeholder="Song title" />
       <input type="text" id="sheet-artist" class="editor-artist-input" placeholder="Artist" />
+      <input type="text" id="sheet-version-name" class="editor-artist-input" placeholder="Version name" title="Shown in parentheses after the title" hidden />
       <div class="sheet-save">
         <span id="save-status" class="save-status">Saved</span>
         <button type="button" id="save-btn" class="primary btn-small">Save</button>
@@ -160,6 +161,7 @@
   <div class="modal-box modal-box--centered modal-box--confirm">
     <p id="confirm-text">Delete this lead sheet?</p>
     <p id="confirm-detail" class="muted confirm-detail" hidden></p>
+    <input type="text" id="confirm-input" class="confirm-input" maxlength="60" autocomplete="off" hidden />
     <div class="modal-actions">
       <button type="button" id="confirm-cancel" class="btn-small">Cancel</button>
       <button type="button" id="confirm-ok" class="danger btn-small">Delete</button>

@@ -3059,7 +3059,7 @@
 
     svg.appendChild(svgRect(0, -PAGE_TOP_PAD, PAGE_W, PAGE_H, { cls: 'page-bg' }));
 
-    const titleStr = model.title || 'Untitled';
+    const titleStr = shownTitle(model);
     svg.appendChild(svgText(titleStr, PAGE_W / 2, PAGE_MARGIN, { cls: 'page-title-text', anchor: 'middle', size: 22 }));
     const artistStr = String(model.artist || '').trim();
     if (artistStr) {
@@ -3078,11 +3078,22 @@
     syncEditBox();
   }
 
+  // The title as shown, with a version's name: "Song (MatRevy 26)".
+  function shownTitle(sheet) {
+    const title = sheet.title || 'Untitled';
+    const name = String(sheet.version_name || '').trim();
+    return name ? `${title} (${name})` : title;
+  }
+
   function render() {
-    document.getElementById('viewer-title').textContent = model.title || 'Untitled';
+    document.getElementById('viewer-title').textContent = shownTitle(model);
     document.getElementById('viewer-artist').textContent = model.artist || '';
     document.getElementById('sheet-title').value = model.title;
     document.getElementById('sheet-artist').value = model.artist || '';
+    // Only a version has a name of its own.
+    const versionName = document.getElementById('sheet-version-name');
+    versionName.hidden = !model.based_on;
+    versionName.value = model.version_name || '';
     sheetKeyButton.refresh();
     renderLinkInputs();
     renderPracticeLinks();
@@ -5153,7 +5164,16 @@
   }
 
   /* ---------- toolbar wiring ---------- */
-  document.getElementById('sheet-title').addEventListener('input', e => { model.title = e.target.value; markDirty(); renderSvg(); });
+  document.getElementById('sheet-title').addEventListener('input', e => {
+    model.title = e.target.value;
+    document.getElementById('viewer-title').textContent = shownTitle(model);
+    markDirty(); renderSvg();
+  });
+  document.getElementById('sheet-version-name').addEventListener('input', e => {
+    model.version_name = e.target.value;
+    document.getElementById('viewer-title').textContent = shownTitle(model);
+    markDirty(); renderSvg();
+  });
   document.getElementById('sheet-artist').addEventListener('input', e => { model.artist = e.target.value; markDirty(); renderSvg(); });
   const sheetKeyButton = songKeyButton(() => model.key, k => {
     model.key = k;
@@ -5236,8 +5256,9 @@
   // `based_on` naming its original -- an archive sheet, or one of the user's
   // own (source 'local'). A version's own versions share its original, so a
   // family is always one original plus its versions. Under the links, a
-  // sheet in a family lists it: the original first, then the versions, the
-  // one on screen ticked.
+  // sheet in a family lists it: the original first, then the versions
+  // ("Song (MatRevy 26)"), the one on screen highlighted. Each version is
+  // named when it's made.
   const store = window.leadsheetStore;
   const isLocal = config.storage === 'local';
   const canCustomize = !!store && (config.canCopy || isLocal);
@@ -5262,7 +5283,7 @@
         ? `/draft#${encodeURIComponent(original.id)}`
         : `/sheets/${encodeURIComponent(original.id)}`;
       const links = [[`${originalTitle} (original)`, originalHref, !!original.here]]
-        .concat(versions.map(v => [v.title, `/draft#${encodeURIComponent(v.id)}`, v.id === leadsheetId]));
+        .concat(versions.map(v => [shownTitle(v), `/draft#${encodeURIComponent(v.id)}`, v.id === leadsheetId]));
       links.forEach(([title, href, isCurrent]) => {
         const a = mk('a', isCurrent ? 'practice-link practice-link--current' : 'practice-link', title);
         a.href = href;
@@ -5277,12 +5298,17 @@
   }
   if (canCustomize) {
     document.getElementById('make-version-btn').addEventListener('click', async () => {
+      const name = await askConfirm('Name your version', 'Create', {
+        input: { placeholder: 'e.g. MatRevy 26' },
+      });
+      if (!name) return;
       const original = familyOriginal();
       const copy = JSON.parse(JSON.stringify(model));
       delete copy.id;
       delete copy.created_at;
       delete copy.updated_at;
       copy.based_on = { id: original.id, title: original.title, source: original.source };
+      copy.version_name = name;
       const id = store.newId('sheets');
       try {
         await store.save('sheets', id, copy);
@@ -5571,26 +5597,40 @@
 
   // The page's own confirm dialog: resolves true on OK, false on Cancel, a
   // click outside the box or Esc. `detail` is a quieter line under the
-  // question; `danger` colours the OK button red.
+  // question; `danger` colours the OK button red. With `input` it asks for
+  // a line of text instead and resolves that (trimmed, never empty) on OK.
   const confirmModal = document.getElementById('confirm-modal');
   const confirmOk = document.getElementById('confirm-ok');
+  const confirmInput = document.getElementById('confirm-input');
   let confirmAnswer = null;
-  function askConfirm(text, okLabel, { detail = '', danger = false } = {}) {
+  function askConfirm(text, okLabel, { detail = '', danger = false, input = null } = {}) {
     document.getElementById('confirm-text').textContent = text;
     const detailEl = document.getElementById('confirm-detail');
     detailEl.textContent = detail;
     detailEl.hidden = !detail;
     confirmOk.textContent = okLabel;
     confirmOk.classList.toggle('danger', danger);
+    confirmInput.hidden = !input;
+    confirmInput.value = (input && input.value) || '';
+    confirmInput.placeholder = (input && input.placeholder) || '';
+    confirmOk.disabled = !!input && !confirmInput.value.trim();
     confirmModal.hidden = false;
-    confirmOk.focus();
+    (input ? confirmInput : confirmOk).focus();
     return new Promise(resolve => { confirmAnswer = resolve; });
   }
   function answerConfirm(ok) {
+    if (ok && !confirmInput.hidden) {
+      ok = confirmInput.value.trim();
+      if (!ok) return;
+    }
     confirmModal.hidden = true;
     if (confirmAnswer) confirmAnswer(ok);
     confirmAnswer = null;
   }
+  confirmInput.addEventListener('input', () => { confirmOk.disabled = !confirmInput.value.trim(); });
+  confirmInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); answerConfirm(true); }
+  });
   confirmModal.addEventListener('click', e => { if (e.target === confirmModal) answerConfirm(false); });
   document.getElementById('confirm-cancel').addEventListener('click', () => answerConfirm(false));
   confirmOk.addEventListener('click', () => answerConfirm(true));
@@ -5604,7 +5644,7 @@
     const files = (typeof config.arrangementFiles === 'object'
       ? (config.arrangementFiles || {})[leadsheetId] : config.arrangementFiles) || 0;
     const detail = files ? `Its ${files} arrangement file${files === 1 ? '' : 's'} will be deleted too.` : '';
-    if (!await askConfirm(`Delete "${model.title.trim() || 'Untitled'}"?`, 'Delete', { detail, danger: true })) return;
+    if (!await askConfirm(`Delete "${shownTitle(model).trim()}"?`, 'Delete', { detail, danger: true })) return;
     if (config.storage === 'local') {
       await window.leadsheetStore.remove('sheets', leadsheetId);
       dirty = false;
@@ -5649,10 +5689,12 @@
         detail: 'Once added it will be publicly available. It can then only be edited or deleted, not returned to drafts.',
       });
     if (!ok) return;
+    // In the archive it's the song itself again, without a version's name.
+    const { version_name, ...sheet } = model;
     const resp = await fetch(original ? `/sheets/${encodeURIComponent(original.id)}` : '/sheets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(model),
+      body: JSON.stringify(sheet),
     });
     if (!resp.ok) {
       alert('Couldn’t move it to the archive: ' + ((await resp.text()) || resp.status));

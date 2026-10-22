@@ -378,6 +378,7 @@ table.repertoire button.row-delete:hover {
 /* Cancel and OK the same width, whatever their labels. */
 .modal-box--confirm .modal-actions button { width: 7rem; text-align: center; }
 .modal-box--centered p.confirm-detail { font-weight: 400; font-size: 0.85rem; margin-top: -0.4rem; }
+.modal-box .confirm-input { width: 100%; box-sizing: border-box; margin-bottom: 1.25rem; }
 .modal-box input[type="url"] { width: 100%; margin-bottom: 1.25rem; }
 .modal-box .field { margin-bottom: 1.25rem; }
 .modal-box .field input { width: 100%; box-sizing: border-box; }
@@ -717,11 +718,6 @@ textarea:focus {
   margin-top: 0.15rem;
   font-size: 0.85rem;
   color: var(--text-dim);
-}
-.leadsheet-card__version {
-  margin-top: 0.35rem;
-  font-size: 0.72rem;
-  color: var(--accent-2);
 }
 
 /* "Saved in this browser only" + the backup buttons (Your Sheets, Setlist). */
@@ -1413,7 +1409,6 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 }
 .practice-link:hover { background: rgba(79,215,209,0.18); border-color: var(--accent-2); }
 .practice-link--current { border-color: var(--accent-2); background: rgba(79,215,209,0.12); }
-.practice-link--current::before { content: '✓ '; color: var(--accent-2); }
 .practice-print { width: 100%; }
 .eb-head--toggle { align-items: center; margin-bottom: 0; }
 .links-field { margin-top: 0.3rem; }
@@ -1924,6 +1919,8 @@ input.top-box__search {
   cursor: default;
 }
 .pick-list__artist { color: var(--text-dim); margin-left: 0.4rem; font-size: 0.78rem; }
+/* A version, right under its song. */
+#sheet-pick-list li.pick-list__version { margin-left: 1.2rem; }
 #sheet-pick-list li.pick-list__group {
   background: none;
   border: none;

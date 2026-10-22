@@ -1,7 +1,8 @@
 /* The user's own things:
  *   sheets   -- drafts made on Create New, and versions made with Customize
  *               (those carry `based_on: { id, title, source }`, source being
- *               'archive' -- the default -- or 'local' for one of these sheets)
+ *               'archive' -- the default -- or 'local' for one of these sheets,
+ *               and `version_name`, shown after the title: "Song (MatRevy 26)")
  *   setlists -- named setlists: { name, rows }
  *
  * Viewers keep them in this browser's localStorage. The admin keeps them on
@@ -28,7 +29,15 @@
     }
     const entry = { id: doc.id, title: doc.title || 'Untitled', artist: doc.artist || '', key: doc.key || '', updated_at: doc.updated_at };
     if (doc.based_on) entry.based_on = doc.based_on;
+    if (doc.version_name) entry.version_name = doc.version_name;
     return entry;
+  }
+
+  // A sheet's title as shown, with its version's name: "Song (MatRevy 26)".
+  function displayTitle(sheet) {
+    const title = sheet.title || 'Untitled';
+    const name = String(sheet.version_name || '').trim();
+    return name ? `${title} (${name})` : title;
   }
 
   function newId(kind) {
@@ -225,6 +234,7 @@
 
   const store = {
     newId,
+    displayTitle,
     // True when the user's things are on the server, not in this browser.
     onServer,
 
