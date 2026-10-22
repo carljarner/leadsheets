@@ -3,12 +3,15 @@
 {% block container_class %}container--full{% endblock %}
 {% block content %}
 {% set admin = request.session.get('role') == 'admin' %}
+{# A viewer sees the admin's drafts and the archive (read-only), then their own sheets. #}
+{% set viewer = request.session.get('role') == 'viewer' %}
 <div class="setlists-toolbar leadsheets-toolbar">
   <h1>Lead Sheets</h1>
   <input type="search" id="sheet-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search lead sheets" autocomplete="off" hidden />
 </div>
 
-<h2 class="sheets-section-title">Drafts</h2>
+{% macro own_sheets(title) %}
+<h2 class="sheets-section-title">{{ title }}</h2>
 {% if not admin %}
 <div class="local-note">
   <p class="muted">Your sheets are saved in this browser only. Export a backup to keep them safe or to move them to another device.</p>
@@ -22,8 +25,32 @@
 <span id="drafts-count" class="muted"></span>
 <ul id="drafts-list" class="setlist-cards"></ul>
 <p id="drafts-empty" class="muted" hidden>No sheets yet. <a href="/draft?mode=edit#new">Create New</a> to make one.</p>
+{% endmacro %}
 
-{% if admin %}
+{% if viewer %}
+<h2 class="sheets-section-title">Drafts</h2>
+{% if shared_drafts %}
+<span class="muted">{{ shared_drafts|length }} sheet{{ "" if shared_drafts|length == 1 else "s" }}</span>
+<ul class="setlist-cards">
+  {% for sheet in shared_drafts %}
+  <li class="setlist-card leadsheet-card" data-search="{{ ((sheet.title or 'Untitled') ~ ' ' ~ (sheet.artist or '')) | lower }}">
+    <a href="/drafts/{{ sheet.id }}" class="leadsheet-card__link">
+      <div class="setlist-card__header">
+        <span>{{ sheet.title or 'Untitled' }}</span>
+      </div>
+      {% if sheet.artist %}<div class="leadsheet-card__artist">{{ sheet.artist }}</div>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">No drafts.</p>
+{% endif %}
+{% else %}
+{{ own_sheets("Drafts") }}
+{% endif %}
+
+{% if admin or viewer %}
 <h2 class="sheets-section-title">Archive</h2>
 {% if sheets %}
 <span class="muted">{{ sheets|length }} song{{ "" if sheets|length == 1 else "s" }}</span>
@@ -43,6 +70,8 @@
 <p class="muted">No lead sheets in the archive yet.</p>
 {% endif %}
 {% endif %}
+
+{% if viewer %}{{ own_sheets("Your sheets") }}{% endif %}
 <p id="sheet-search-empty" class="muted" hidden>No lead sheets match your search.</p>
 {% endblock %}
 

@@ -27,9 +27,9 @@
   {% block topbar %}
   <header class="topbar">
     <a href="/sheets" class="topbar__brand">LEADSHEETS.DK</a>
-    {% if request.session.get('role') == 'admin' %}
+    {% if request.session.get('role') in ('admin', 'viewer') %}
     <form method="post" action="/logout" class="topbar__account">
-      <span class="topbar__role">Admin</span>
+      <span class="topbar__role">{{ 'Admin' if request.session.get('role') == 'admin' else 'Viewer' }}</span>
       <button type="submit" class="btn-small">Log out</button>
     </form>
     {% endif %}
@@ -41,7 +41,7 @@
     <div class="main-nav__tabs page-tabs">
       <a href="/setlist" class="page-tabs__tab {{ 'is-active' if section == 'setlist' }}">Setlist</a>
       <a href="/sheets" class="page-tabs__tab {{ 'is-active' if section == 'sheets' }}">Lead Sheets</a>
-      {% if request.session.get('role') == 'admin' %}
+      {% if request.session.get('role') in ('admin', 'viewer') %}
       <a href="/arrangements" class="page-tabs__tab {{ 'is-active' if section == 'arrangements' }}">Arrangements</a>
       {% endif %}
       <a href="/draft?mode=edit#new" class="page-tabs__tab {{ 'is-active' if section == 'draft' }}">Create New</a>

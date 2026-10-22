@@ -13,7 +13,8 @@
 (function () {
   'use strict';
 
-  const { sheets, folders: foldersBySheet, maxMb } = window.ARRANGEMENTS;
+  // A viewer (canEdit false) only opens and downloads.
+  const { sheets, folders: foldersBySheet, maxMb, canEdit } = window.ARRANGEMENTS;
   const ALLOWED_EXTS = ['pdf', 'mscz', 'mscx'];
   const OPEN_KEY = 'arrangements-open';
 
@@ -235,12 +236,19 @@
     const sheetRow = mk('div', 'arr-sheet-row');
     sheetRow.appendChild(mk('span', 'arr-kind arr-kind--sheet', 'Chart'));
     const link = mk('a', 'arr-sheet-link', sheet.title);
-    link.href = sheet.draft ? `/draft#${encodeURIComponent(sheet.id)}` : `/sheets/${encodeURIComponent(sheet.id)}`;
+    // A viewer sees the admin's drafts read-only at /drafts/<id>.
+    link.href = !sheet.draft ? `/sheets/${encodeURIComponent(sheet.id)}`
+      : canEdit ? `/draft#${encodeURIComponent(sheet.id)}` : `/drafts/${encodeURIComponent(sheet.id)}`;
     link.title = 'Open the lead sheet in Practice mode';
     sheetRow.appendChild(link);
     body.appendChild(sheetRow);
 
     for (const folder of folders(sheet.id)) body.appendChild(buildFolder(sheet, folder));
+    if (!canEdit) {
+      if (!folders(sheet.id).length) body.appendChild(mk('p', 'muted arr-folder__empty', 'No arrangements yet.'));
+      li.appendChild(body);
+      return li;
+    }
 
     const newBtn = mk('button', 'add-row-btn arr-add', '+');
     newBtn.type = 'button';
@@ -271,39 +279,16 @@
       rerenderCard(sheet.id);
     });
     headRow.appendChild(toggle);
-    const actions = mk('div', 'arr-actions');
-    const renameBtn = iconBtn('✎', 'Rename folder');
-    renameBtn.addEventListener('click', () => renameFolder(sheet, folder));
-    actions.appendChild(renameBtn);
-    const deleteBtn = iconBtn('×', 'Delete folder', 'arr-icon-btn--danger');
-    deleteBtn.addEventListener('click', () => deleteFolder(sheet, folder));
-    actions.appendChild(deleteBtn);
-    headRow.appendChild(actions);
     node.appendChild(headRow);
-
-    // Drop files from the desktop onto a folder, open or closed, to upload.
-    node.addEventListener('dragover', e => {
-      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
-      e.preventDefault();
-      node.classList.add('arr-dragover');
-    });
-    node.addEventListener('dragleave', e => {
-      if (!node.contains(e.relatedTarget)) node.classList.remove('arr-dragover');
-    });
-    node.addEventListener('drop', e => {
-      if (!e.dataTransfer || !e.dataTransfer.files.length) return;
-      e.preventDefault();
-      node.classList.remove('arr-dragover');
-      open.folders.add(folder.id);
-      saveOpen();
-      askUpload(sheet, folder, Array.from(e.dataTransfer.files));
-    });
+    if (canEdit) wireFolderEditing(sheet, folder, node, headRow);
 
     if (!isOpen) return node;
 
     const body = mk('div', 'arr-folder__body');
     if (!folder.files.length) body.appendChild(mk('p', 'muted arr-folder__empty', 'No files yet.'));
     for (const file of sortedFiles(folder.files)) body.appendChild(buildFile(sheet, folder, file));
+    node.appendChild(body);
+    if (!canEdit) return node;
 
     const bar = mk('div', 'arr-upload-bar');
     const input = mk('input');
@@ -326,8 +311,37 @@
     bar.appendChild(input);
     if (uploadStatus.has(folder.id)) bar.appendChild(mk('span', 'muted', uploadStatus.get(folder.id)));
     body.appendChild(bar);
-    node.appendChild(body);
     return node;
+  }
+
+  // The admin's controls on a folder: rename, delete, and dropping files on it.
+  function wireFolderEditing(sheet, folder, node, headRow) {
+    const actions = mk('div', 'arr-actions');
+    const renameBtn = iconBtn('✎', 'Rename folder');
+    renameBtn.addEventListener('click', () => renameFolder(sheet, folder));
+    actions.appendChild(renameBtn);
+    const deleteBtn = iconBtn('×', 'Delete folder', 'arr-icon-btn--danger');
+    deleteBtn.addEventListener('click', () => deleteFolder(sheet, folder));
+    actions.appendChild(deleteBtn);
+    headRow.appendChild(actions);
+
+    // Drop files from the desktop onto a folder, open or closed, to upload.
+    node.addEventListener('dragover', e => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+      e.preventDefault();
+      node.classList.add('arr-dragover');
+    });
+    node.addEventListener('dragleave', e => {
+      if (!node.contains(e.relatedTarget)) node.classList.remove('arr-dragover');
+    });
+    node.addEventListener('drop', e => {
+      if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      node.classList.remove('arr-dragover');
+      open.folders.add(folder.id);
+      saveOpen();
+      askUpload(sheet, folder, Array.from(e.dataTransfer.files));
+    });
   }
 
   function newFolder(sheet) {
@@ -410,6 +424,10 @@
     download.title = 'Download';
     download.setAttribute('aria-label', 'Download');
     actions.appendChild(download);
+    if (!canEdit) {
+      row.appendChild(actions);
+      return row;
+    }
     const renameBtn = iconBtn('✎', 'Rename file');
     renameBtn.addEventListener('click', () => renameFile(sheet, file));
     actions.appendChild(renameBtn);

@@ -23,6 +23,9 @@ def _secrets(name: str) -> list[str]:
 
 
 ADMIN_PASSWORDS = _secrets("ADMIN_PASSWORD")
+# Optional: sees what the admin sees (the archive, the admin's drafts and
+# their Arrangements), read-only.
+VIEWER_PASSWORDS = _secrets("VIEWER_PASSWORD")
 # One token per site that reads the archive (e.g. the James Band intern app).
 API_TOKENS = _secrets("API_TOKEN")
 SESSION_SECRET = os.environ["SESSION_SECRET"]
@@ -73,19 +76,25 @@ def is_admin(request: Request) -> bool:
     return role(request) == "admin"
 
 
+def can_view(request: Request) -> bool:
+    """The admin, or a viewer: may see the archive, the admin's drafts and
+    their Arrangements. Only the admin may change them."""
+    return role(request) in ("admin", "viewer")
+
+
 def require_admin(request: Request) -> None:
     if not is_admin(request):
         raise HTTPException(status_code=403, detail="Only the admin can change the archive.")
 
 
 def _archive(request: Request) -> list[dict]:
-    """The archive's sheets, or none: only the admin may see the archive."""
-    return sheets.list_leadsheets() if is_admin(request) else []
+    """The archive's sheets, or none: only the admin and viewers may see the archive."""
+    return sheets.list_leadsheets() if can_view(request) else []
 
 
 def _archive_sheet(request: Request, leadsheet_id: str) -> dict:
     # A 404 for everyone else, so they can't tell which sheets exist.
-    if not is_admin(request):
+    if not can_view(request):
         raise HTTPException(status_code=404)
     try:
         return sheets.get_leadsheet(leadsheet_id)
@@ -129,6 +138,8 @@ async def login_form(request: Request):
 async def login(request: Request, password: str = Form(...)):
     if _matches(password, ADMIN_PASSWORDS):
         request.session["role"] = "admin"
+    elif _matches(password, VIEWER_PASSWORDS):
+        request.session["role"] = "viewer"
     else:
         return templates.TemplateResponse(
             request, "login.html", {"error": "Wrong password"}, status_code=401
@@ -150,12 +161,17 @@ async def home():
 @app.get("/sheets", response_class=HTMLResponse)
 async def sheets_page(request: Request):
     # Everyone's own sheets are drawn by the page (static/user-store.js); the
-    # archive is the admin's alone.
+    # archive is for the admin and viewers, and viewers see the admin's drafts.
     archive = _archive(request)
+    shared_drafts = _drafts() if role(request) == "viewer" else []
     return templates.TemplateResponse(
         request,
         "sheets.html",
-        {"sheets": archive, "archive_ids_json": _json([s["id"] for s in archive])},
+        {
+            "sheets": archive,
+            "shared_drafts": shared_drafts,
+            "archive_ids_json": _json([s["id"] for s in archive]),
+        },
     )
 
 
@@ -181,18 +197,21 @@ async def sheets_create(request: Request):
 @app.get("/sheets/{leadsheet_id}", response_class=HTMLResponse)
 async def sheet_page(request: Request, leadsheet_id: str):
     sheet = _archive_sheet(request, leadsheet_id)
+    admin = is_admin(request)
+    # A viewer gets Practice mode only, without Customize.
     config = {
-        "canEdit": True,
-        "canCopy": True,
+        "canEdit": admin,
+        "canCopy": admin,
         # The Saved in box.
-        "canMove": True,
+        "canMove": admin,
         "storage": "server",
         "saveUrl": f"/sheets/{sheet['id']}",
         "deleteUrl": f"/sheets/{sheet['id']}/delete",
         "afterDeleteUrl": "/sheets",
-        # Its Arrangements go with it, so the delete question mentions them.
-        "arrangementFiles": arrangements.file_count(sheet["id"]),
     }
+    if admin:
+        # Its Arrangements go with it, so the delete question mentions them.
+        config["arrangementFiles"] = arrangements.file_count(sheet["id"])
     return templates.TemplateResponse(
         request,
         "sheet.html",
@@ -274,19 +293,43 @@ async def draft_page(request: Request):
     )
 
 
+@app.get("/drafts/{draft_id}", response_class=HTMLResponse)
+async def shared_draft_page(request: Request, draft_id: str):
+    # One of the admin's drafts, for a viewer: Practice mode only. (The admin
+    # edits it at /draft#<id>.)
+    if not can_view(request):
+        raise HTTPException(status_code=404)
+    try:
+        sheet = user_store.get_doc(ADMIN_USER, "sheets", draft_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    sheet = dict(sheet, title=sheet.get("title") or "Untitled")
+    config = {"canEdit": False, "canCopy": False, "canMove": False, "storage": "server", "afterDeleteUrl": "/sheets"}
+    return templates.TemplateResponse(
+        request,
+        "sheet.html",
+        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config)},
+    )
+
+
 # ── Arrangements: sheet music for each of the admin's sheets ──────────
-# The admin's alone, like the archive: a 404 for everyone else. Every
-# archive sheet and draft has a card; its files sit in named folders
-# (arrangements.py).
+# The admin's and viewers' (read-only), like the archive: a 404 for everyone
+# else. Every archive sheet and draft has a card; its files sit in named
+# folders (arrangements.py).
 
 def _drafts() -> list[dict]:
-    return user_store.list_docs(ADMIN_USER, "sheets")
+    """The admin's drafts, by title."""
+    drafts = user_store.list_docs(ADMIN_USER, "sheets")
+    return sorted(drafts, key=lambda d: (d.get("title") or "Untitled").casefold())
 
 
-def _arrangement_sheet(request: Request, sheet_id: str) -> None:
-    """Only the admin's sheets, archive or draft, have arrangements."""
-    if not is_admin(request):
+def _arrangement_sheet(request: Request, sheet_id: str, write: bool = False) -> None:
+    """Only the admin's sheets, archive or draft, have arrangements. Viewers
+    may open and download them; only the admin may change them."""
+    if not can_view(request):
         raise HTTPException(status_code=404)
+    if write:
+        require_admin(request)
     try:
         sheets.get_leadsheet(sheet_id)
         return
@@ -300,14 +343,13 @@ def _arrangement_sheet(request: Request, sheet_id: str) -> None:
 
 @app.get("/arrangements", response_class=HTMLResponse)
 async def arrangements_page(request: Request):
-    if not is_admin(request):
+    if not can_view(request):
         raise HTTPException(status_code=404)
 
     def entry(sheet: dict, draft: bool) -> dict:
         return {"id": sheet["id"], "title": sheet.get("title") or "Untitled", "artist": sheet.get("artist", ""), "draft": draft}
 
-    drafts = sorted(_drafts(), key=lambda d: (d.get("title") or "Untitled").casefold())
-    catalog = [entry(d, True) for d in drafts] + [entry(s, False) for s in _archive(request)]
+    catalog = [entry(d, True) for d in _drafts()] + [entry(s, False) for s in _archive(request)]
     return templates.TemplateResponse(
         request,
         "arrangements.html",
@@ -315,6 +357,7 @@ async def arrangements_page(request: Request):
             "sheets_json": _json(catalog),
             "folders_json": _json(arrangements.list_all()),
             "max_mb": arrangements.MAX_FILE_BYTES // (1024 * 1024),
+            "can_edit": is_admin(request),
         },
     )
 
@@ -341,7 +384,7 @@ async def arrangement_move(sheet_id: str, request: Request):
 
 @app.post("/arrangements/{sheet_id}/folders")
 async def arrangement_folder_add(sheet_id: str, request: Request):
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     try:
         return arrangements.add_folder(sheet_id, (await _read_json(request)).get("name"))
     except (ValueError, TypeError) as exc:
@@ -350,7 +393,7 @@ async def arrangement_folder_add(sheet_id: str, request: Request):
 
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}")
 async def arrangement_folder_rename(sheet_id: str, folder_id: str, request: Request):
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     try:
         return arrangements.rename_folder(sheet_id, folder_id, (await _read_json(request)).get("name"))
     except KeyError:
@@ -361,7 +404,7 @@ async def arrangement_folder_rename(sheet_id: str, folder_id: str, request: Requ
 
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}/delete")
 async def arrangement_folder_delete(sheet_id: str, folder_id: str, request: Request):
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     try:
         arrangements.delete_folder(sheet_id, folder_id)
     except KeyError:
@@ -372,7 +415,7 @@ async def arrangement_folder_delete(sheet_id: str, folder_id: str, request: Requ
 @app.post("/arrangements/{sheet_id}/folders/{folder_id}/files")
 async def arrangement_file_add(sheet_id: str, folder_id: str, request: Request):
     # The file is the raw body; its name (with the extension) is ?name=.
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     too_large = f"The file is too large (max {arrangements.MAX_FILE_BYTES // (1024 * 1024)} MB)."
     try:
         declared = int(request.headers.get("content-length", "0"))
@@ -414,7 +457,7 @@ async def arrangement_file_get(sheet_id: str, file_id: str, request: Request):
 
 @app.post("/arrangements/{sheet_id}/files/{file_id}")
 async def arrangement_file_rename(sheet_id: str, file_id: str, request: Request):
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     try:
         return arrangements.rename_file(sheet_id, file_id, (await _read_json(request)).get("name"))
     except KeyError:
@@ -425,7 +468,7 @@ async def arrangement_file_rename(sheet_id: str, file_id: str, request: Request)
 
 @app.post("/arrangements/{sheet_id}/files/{file_id}/delete")
 async def arrangement_file_delete(sheet_id: str, file_id: str, request: Request):
-    _arrangement_sheet(request, sheet_id)
+    _arrangement_sheet(request, sheet_id, write=True)
     try:
         arrangements.delete_file(sheet_id, file_id)
     except KeyError:

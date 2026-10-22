@@ -5,6 +5,13 @@ app. The tool is public and needs no login. The archive of sheets is
 private: only the admin sees it. The admin logs in at `/login`, which
 nothing links to.
 
+A **viewer** logs in there too, with the viewer password, and sees what the
+admin sees, read-only: the archive and the admin's drafts in Practice mode
+(no Customize, drafts at `/drafts/{id}`) and the Arrangements tab, where
+files can be opened and downloaded. Lead Sheets lists the admin's Drafts,
+the Archive, then the viewer's own sheets (in their browser, as for any
+visitor). Every write is the admin's alone.
+
 - **Setlist** (`/setlist`): pick from your own sheets (and, for the admin,
   the archive), put them in order (with pauses between sets), choose each
   one's key, and download one PDF: a setlist page, then every chart in that
@@ -15,7 +22,7 @@ nothing links to.
   change as you like. If the original is deleted, its versions become
   sheets of their own. The admin also sees the **Archive** here. To
   everyone else, `/sheets/{id}` and `/sheets/{id}/json` return 404.
-- **Arrangements** (`/arrangements`, admin only): sheet music for each of
+- **Arrangements** (`/arrangements`, admin; read-only for a viewer): sheet music for each of
   the admin's sheets, drafts and archive. Every sheet has a card (there is
   no other way to make one): it links to the lead sheet, then holds named,
   collapsible folders (e.g. "MatRevy 26 - 0.5 op") of PDF and MuseScore
@@ -67,6 +74,7 @@ James Band intern app's.
 | Variable | |
 |---|---|
 | `ADMIN_PASSWORD` | Admin login (comma-separated for several) |
+| `VIEWER_PASSWORD` | Optional read-only viewer login (comma-separated for several) |
 | `SESSION_SECRET` | A long random string: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `API_TOKEN` | Tokens for the read API, comma-separated, one per consumer |
 | `DATA_DIR` | `/data` in production. Defaults to `./data` |
@@ -76,7 +84,7 @@ James Band intern app's.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-ADMIN_PASSWORD=a SESSION_SECRET=s API_TOKEN=t \
+ADMIN_PASSWORD=a VIEWER_PASSWORD=v SESSION_SECRET=s API_TOKEN=t \
   .venv/bin/uvicorn app:app --reload --port 10001
 ```
 

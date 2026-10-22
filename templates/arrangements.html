@@ -6,7 +6,11 @@
   <h1>Arrangements</h1>
   <input type="search" id="arr-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search arrangements" autocomplete="off" />
 </div>
+{% if can_edit %}
 <p class="muted arr-hint">One card per lead sheet: create a sheet to get a new card. A draft's arrangements follow it into the archive. PDF and MuseScore files, up to {{ max_mb }} MB each.</p>
+{% else %}
+<p class="muted arr-hint">Sheet music for each lead sheet. Open a PDF or download any file.</p>
+{% endif %}
 
 <h2 class="sheets-section-title">Drafts</h2>
 <span id="arr-drafts-count" class="muted"></span>
@@ -39,6 +43,8 @@
     sheets: {{ sheets_json|safe }},
     folders: {{ folders_json|safe }},
     maxMb: {{ max_mb }},
+    // Viewers only open and download.
+    canEdit: {{ 'true' if can_edit else 'false' }},
   };
 </script>
 <script src="/static/arrangements.js?v={{ static_version }}"></script>
