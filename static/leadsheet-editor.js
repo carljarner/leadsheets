@@ -5599,7 +5599,10 @@
   });
 
   document.getElementById('delete-btn').addEventListener('click', async () => {
-    if (!await askConfirm(`Delete "${model.title.trim() || 'Untitled'}"?`, 'Delete', { danger: true })) return;
+    // An archive sheet's Arrangements go with it.
+    const files = config.arrangementFiles || 0;
+    const detail = files ? `Its ${files} arrangement file${files === 1 ? '' : 's'} will be deleted too.` : '';
+    if (!await askConfirm(`Delete "${model.title.trim() || 'Untitled'}"?`, 'Delete', { detail, danger: true })) return;
     if (config.storage === 'local') {
       await window.leadsheetStore.remove('sheets', leadsheetId);
       dirty = false;

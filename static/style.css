@@ -736,6 +736,128 @@ textarea:focus {
 .local-note__actions { display: flex; gap: 0.5rem; }
 .draft-based-on { margin-left: 0.5rem; font-size: 0.85rem; }
 
+/* ---------- Arrangements ---------- */
+.arr-hint { margin: 0.25rem 0 0.5rem; }
+.arr-cards { align-items: start; }
+.setlist-card.arr-card { padding: 0; }
+.setlist-card.arr-card[hidden] { display: none; }
+/* An open card takes the whole row, to fit its folders and files. */
+.arr-card--open { grid-column: 1 / -1; border-color: rgba(79,215,209,0.4); }
+
+/* Card and folder heads are plain rows, not the app's outlined buttons. */
+.arr-card__head,
+.arr-folder__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  font-size: 1rem;
+}
+.arr-card__head { padding: 1rem 1.25rem; }
+.arr-card__head:hover,
+.arr-folder__toggle:hover { background: none; color: inherit; }
+.arr-card__head:hover .setlist-card__header,
+.arr-folder__toggle:hover .arr-folder__name { color: var(--accent-2); }
+.arr-card__titles { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.arr-card__titles .leadsheet-card__artist { margin-top: 0; }
+.arr-chevron { color: var(--text-dim); width: 0.8rem; flex-shrink: 0; }
+.arr-count { color: var(--text-dim); font-size: 0.78rem; white-space: nowrap; }
+
+.arr-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.25rem 1.1rem;
+}
+
+.arr-sheet-row,
+.arr-file {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2rem;
+}
+.arr-sheet-row { padding: 0.35rem 0.75rem; background: var(--surface-alt); border-radius: 6px; }
+.arr-sheet-link { font-weight: 600; text-decoration: none; }
+.arr-sheet-link:hover { text-decoration: underline; }
+
+/* PDF / MSC / Chart badges. */
+.arr-kind {
+  flex-shrink: 0;
+  min-width: 2.6rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-align: center;
+  color: #12130f;
+}
+.arr-kind--pdf { background: var(--text-dim); }
+.arr-kind--msc { background: var(--accent); }
+.arr-kind--sheet { background: var(--accent-2); }
+
+.arr-folder {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.arr-folder--open { background: rgba(255,255,255,0.025); }
+.arr-folder.arr-dragover { border-color: var(--accent-2); background: rgba(79,215,209,0.08); }
+.arr-folder__head { display: flex; align-items: center; padding-right: 0.4rem; }
+.arr-folder__toggle { padding: 0.5rem 0.75rem; flex: 1; min-width: 0; }
+.arr-folder__name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 0.92rem; }
+.arr-folder__body { padding: 0 0.75rem 0.6rem 2.15rem; }
+.arr-folder__empty { margin: 0 0 0.4rem; }
+.arr-file { border-top: 1px solid rgba(255,255,255,0.06); padding: 0.2rem 0; }
+.arr-file__name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.9rem; color: var(--text); }
+a.arr-file__open { text-decoration: none; }
+a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
+
+.arr-actions { display: flex; gap: 0.15rem; flex-shrink: 0; }
+.arr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.arr-icon-btn:hover { background: var(--surface-alt); color: var(--text); border-color: rgba(255,255,255,0.15); }
+.arr-icon-btn--danger:hover { color: var(--accent); border-color: var(--accent); }
+
+.arr-upload-bar { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+.arr-new-folder { align-self: flex-start; margin-top: 0.25rem; }
+
+/* The modal: questions centred, form fields full width. */
+.modal-box.arr-modal--form { max-width: 440px; }
+.arr-modal-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.modal-box .arr-modal-field { margin-bottom: 0.9rem; }
+.arr-upload-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
+.arr-upload-item__file { overflow-wrap: anywhere; }
+.modal-box p.arr-modal-error { color: var(--accent); font-weight: 400; font-size: 0.85rem; margin: -0.3rem 0 1rem; }
+
+@media (max-width: 600px) {
+  .arr-folder__body { padding-left: 0.75rem; }
+  .arr-drop-hint { display: none; }
+}
+
 /* ---------- Lead sheet editor ---------- */
 @font-face {
   font-family: 'MuseJazzText';

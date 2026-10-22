@@ -3,13 +3,15 @@ import json
 import os
 import secrets
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+import arrangements
 import sheets
 import user_store
 
@@ -188,6 +190,8 @@ async def sheet_page(request: Request, leadsheet_id: str):
         "saveUrl": f"/sheets/{sheet['id']}",
         "deleteUrl": f"/sheets/{sheet['id']}/delete",
         "afterDeleteUrl": "/sheets",
+        # Its Arrangements go with it, so the delete question mentions them.
+        "arrangementFiles": arrangements.file_count(sheet["id"]),
     }
     return templates.TemplateResponse(
         request,
@@ -222,6 +226,7 @@ async def sheet_delete(leadsheet_id: str, request: Request):
         sheets.delete_leadsheet(leadsheet_id)
     except KeyError:
         raise HTTPException(status_code=404)
+    arrangements.delete_sheet(leadsheet_id)
     return RedirectResponse("/sheets", status_code=303)
 
 
@@ -261,6 +266,124 @@ async def draft_page(request: Request):
     return templates.TemplateResponse(
         request, "draft.html", {"config_json": _json(config), "archive_ids_json": _json(archive_ids)}
     )
+
+
+# ── Arrangements: sheet music for each archive sheet ──────────────────
+# The admin's alone, like the archive: a 404 for everyone else. Every
+# archive sheet has a card; its files sit in named folders (arrangements.py).
+
+@app.get("/arrangements", response_class=HTMLResponse)
+async def arrangements_page(request: Request):
+    if not is_admin(request):
+        raise HTTPException(status_code=404)
+    catalog = [{"id": s["id"], "title": s["title"], "artist": s.get("artist", "")} for s in _archive(request)]
+    return templates.TemplateResponse(
+        request,
+        "arrangements.html",
+        {
+            "sheets_json": _json(catalog),
+            "folders_json": _json(arrangements.list_all()),
+            "max_mb": arrangements.MAX_FILE_BYTES // (1024 * 1024),
+        },
+    )
+
+
+def _arrangement_error(exc: Exception) -> Response:
+    return Response(content=str(exc), status_code=400)
+
+
+@app.post("/arrangements/{sheet_id}/folders")
+async def arrangement_folder_add(sheet_id: str, request: Request):
+    _archive_sheet(request, sheet_id)  # only archive sheets have arrangements
+    try:
+        return arrangements.add_folder(sheet_id, (await _read_json(request)).get("name"))
+    except (ValueError, TypeError) as exc:
+        return _arrangement_error(exc)
+
+
+@app.post("/arrangements/{sheet_id}/folders/{folder_id}")
+async def arrangement_folder_rename(sheet_id: str, folder_id: str, request: Request):
+    _archive_sheet(request, sheet_id)
+    try:
+        return arrangements.rename_folder(sheet_id, folder_id, (await _read_json(request)).get("name"))
+    except KeyError:
+        raise HTTPException(status_code=404)
+    except (ValueError, TypeError) as exc:
+        return _arrangement_error(exc)
+
+
+@app.post("/arrangements/{sheet_id}/folders/{folder_id}/delete")
+async def arrangement_folder_delete(sheet_id: str, folder_id: str, request: Request):
+    _archive_sheet(request, sheet_id)
+    try:
+        arrangements.delete_folder(sheet_id, folder_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return Response(status_code=204)
+
+
+@app.post("/arrangements/{sheet_id}/folders/{folder_id}/files")
+async def arrangement_file_add(sheet_id: str, folder_id: str, request: Request):
+    # The file is the raw body; its name (with the extension) is ?name=.
+    _archive_sheet(request, sheet_id)
+    too_large = f"The file is too large (max {arrangements.MAX_FILE_BYTES // (1024 * 1024)} MB)."
+    try:
+        declared = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        declared = 0
+    if declared > arrangements.MAX_FILE_BYTES:
+        return Response(content=too_large, status_code=413)
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > arrangements.MAX_FILE_BYTES:
+            return Response(content=too_large, status_code=413)
+    try:
+        return arrangements.add_file(sheet_id, folder_id, request.query_params.get("name", ""), bytes(data))
+    except KeyError:
+        raise HTTPException(status_code=404)
+    except ValueError as exc:
+        return _arrangement_error(exc)
+
+
+@app.get("/arrangements/{sheet_id}/files/{file_id}")
+async def arrangement_file_get(sheet_id: str, file_id: str, request: Request):
+    _archive_sheet(request, sheet_id)
+    try:
+        record, path = arrangements.get_file(sheet_id, file_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    filename = f"{record['name']}.{record['ext']}"
+    # PDFs open in the browser; MuseScore files (and ?download=1) are saved.
+    inline = record["ext"] == "pdf" and request.query_params.get("download") != "1"
+    fallback = filename.encode("ascii", "replace").decode().replace('"', "'").replace("?", "_")
+    disposition = f"{'inline' if inline else 'attachment'}; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
+    return FileResponse(
+        path,
+        media_type="application/pdf" if record["ext"] == "pdf" else "application/octet-stream",
+        headers={"Content-Disposition": disposition, "Cache-Control": "no-store"},
+    )
+
+
+@app.post("/arrangements/{sheet_id}/files/{file_id}")
+async def arrangement_file_rename(sheet_id: str, file_id: str, request: Request):
+    _archive_sheet(request, sheet_id)
+    try:
+        return arrangements.rename_file(sheet_id, file_id, (await _read_json(request)).get("name"))
+    except KeyError:
+        raise HTTPException(status_code=404)
+    except (ValueError, TypeError) as exc:
+        return _arrangement_error(exc)
+
+
+@app.post("/arrangements/{sheet_id}/files/{file_id}/delete")
+async def arrangement_file_delete(sheet_id: str, file_id: str, request: Request):
+    _archive_sheet(request, sheet_id)
+    try:
+        arrangements.delete_file(sheet_id, file_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+    return Response(status_code=204)
 
 
 # ── The admin's own sheets and setlists ───────────────────────────────

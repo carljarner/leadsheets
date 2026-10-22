@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Arrangements{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+<div class="setlists-toolbar leadsheets-toolbar">
+  <h1>Arrangements</h1>
+  <input type="search" id="arr-search" class="leadsheets-search" placeholder="Search title or artist" aria-label="Search arrangements" autocomplete="off" />
+</div>
+<p class="muted arr-hint">One card per archive sheet: add a sheet to the archive to get a new card. PDF and MuseScore files, up to {{ max_mb }} MB each.</p>
+
+<span id="arr-count" class="muted"></span>
+<ul id="arr-list" class="setlist-cards arr-cards"></ul>
+<p id="arr-empty" class="muted" hidden>No lead sheets in the archive yet.</p>
+<p id="arr-search-empty" class="muted" hidden>No lead sheets match your search.</p>
+
+<div id="arr-modal" class="modal-overlay" hidden>
+  <div class="modal-box modal-box--centered" role="dialog" aria-modal="true" aria-labelledby="arr-modal-title">
+    <p id="arr-modal-title"></p>
+    <p id="arr-modal-detail" class="muted confirm-detail" hidden></p>
+    <div id="arr-modal-fields"></div>
+    <p id="arr-modal-error" class="arr-modal-error" hidden></p>
+    <div class="modal-actions">
+      <button type="button" id="arr-modal-cancel" class="btn-small">Cancel</button>
+      <button type="button" id="arr-modal-ok" class="btn-small">OK</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.ARRANGEMENTS = {
+    sheets: {{ sheets_json|safe }},
+    folders: {{ folders_json|safe }},
+    maxMb: {{ max_mb }},
+  };
+</script>
+<script src="/static/arrangements.js?v={{ static_version }}"></script>
+{% endblock %}

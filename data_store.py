@@ -1,7 +1,8 @@
 """Flat-file JSON storage on the server's persistent disk.
 
-DATA_DIR holds everything the app writes: the archive (leadsheets/<id>.json)
-and the admin's own sheets and setlists (users/admin/<kind>/<id>.json).
+DATA_DIR holds everything the app writes: the archive (leadsheets/<id>.json),
+its arrangements (arrangements/<id>/) and the admin's own sheets and
+setlists (users/admin/<kind>/<id>.json).
 
 Production: DATA_DIR=/data, bind-mounted from /srv/leadsheets/data on the
 server, so it survives redeploys and is covered by the nightly backup.
@@ -37,3 +38,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
 
 def save_json(path: Path, data) -> None:
     _atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8"))
+
+
+def write_bytes(path: Path, data: bytes) -> None:
+    _atomic_write(path, data)

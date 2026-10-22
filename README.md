@@ -15,6 +15,11 @@ nothing links to.
   change as you like. If the original is deleted, its versions become
   sheets of their own. The admin also sees the **Archive** here. To
   everyone else, `/sheets/{id}` and `/sheets/{id}/json` return 404.
+- **Arrangements** (`/arrangements`, admin only): sheet music for each
+  archive sheet. Every archive sheet has a card (there is no other way to
+  make one): it links to the lead sheet, then holds named, collapsible
+  folders (e.g. "MatRevy 26 - 0.5 op") of PDF and MuseScore files, up to
+  15 MB each. Deleting the sheet deletes its arrangements.
 - **Create New** (`/draft?mode=edit#new`): the editor, straight away.
   (`/new` redirects there.)
   - **Admin** can switch any archive sheet into Edit mode to save or
@@ -50,7 +55,9 @@ methods:
 Every record has a random id and `updated_at`, so giving visitors accounts
 later means a folder per user and the same merge to upload their browsers.
 
-Sheets are stored as `DATA_DIR/leadsheets/<id>.json`. The ids match the
+Sheets are stored as `DATA_DIR/leadsheets/<id>.json`.
+Their arrangements are in `DATA_DIR/arrangements/<id>/`: an `index.json` of
+folders and files, and the files themselves. The ids match the
 James Band intern app's.
 
 ## Environment
