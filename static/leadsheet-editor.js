@@ -2306,7 +2306,6 @@
   function renderRhythmCells(container, cells, x, y, w, h, onCellClick, onCellDrag, beatUnits, moveEl, barUnits) {
     const cellBoxes = [];
     const totalUnits = cells.reduce((s, c) => s + c.duration, 0);
-    const avgUnitW = w / totalUnits;
     // Several bars (`barUnits` each) get an equal share of `w` apiece.
     const bars = barUnits && totalUnits > barUnits ? splitStaffBars(cells, barUnits) : [cells];
     const barW = w / bars.length;
@@ -2395,7 +2394,6 @@
           // with no 16th neighbor gets a short broken-beam stub instead,
           // pointing toward whichever side still has notes left in the run.
           const beam2Y = beamY + beamGap;
-          const stubLen = avgUnitW * 0.8;
           const sixteenthStretches = [];
           let sStart = null;
           for (let k = 0; k <= runCells.length; k++) {
@@ -2414,6 +2412,8 @@
               container.appendChild(seg);
             } else {
               const dir = sr.start < runCells.length - 1 ? 1 : -1;
+              // About a third of the way to the neighboring stem.
+              const stubLen = Math.abs(stemXs[sr.start + dir] - stemXs[sr.start]) * 0.3;
               const stub = svgLine(stemXs[sr.start], beam2Y, stemXs[sr.start] + dir * stubLen, beam2Y, { cls: 'el-notegroup-beam' });
               stub.setAttribute('stroke-width', beamThick);
               container.appendChild(stub);
@@ -2860,7 +2860,6 @@
         container.appendChild(primary);
 
         const beam2Y = beamY + (stemUp ? beamGap : -beamGap);
-        const stubLen = (cellWidths[run.start] || 8) * 0.6;
         let sStart = null;
         const stretches = [];
         for (let k = 0; k <= runCells.length; k++) {
@@ -2875,6 +2874,9 @@
             container.appendChild(seg);
           } else {
             const dir = sr.start < runCells.length - 1 ? 1 : -1;
+            // A broken-beam stub reaches about a third of the way to the
+            // neighboring stem it points at.
+            const stubLen = Math.abs(stemXs[sr.start + dir] - stemXs[sr.start]) * 0.3;
             const stub = svgLine(stemXs[sr.start] - dir * stemHalf, beam2Y, stemXs[sr.start] + dir * stubLen, beam2Y, { cls: 'el-notegroup-beam' });
             stub.setAttribute('stroke-width', beamThick);
             container.appendChild(stub);
