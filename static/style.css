@@ -783,6 +783,7 @@ textarea:focus {
   min-height: 2rem;
 }
 .arr-sheet-row { padding: 0.35rem 0.75rem; background: var(--surface-alt); border-radius: 6px; }
+.arr-sheet-row + .arr-sheet-row { margin-top: 0.3rem; }
 .arr-sheet-link { font-weight: 600; text-decoration: none; }
 .arr-sheet-link:hover { text-decoration: underline; }
 

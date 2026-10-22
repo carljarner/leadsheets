@@ -3,7 +3,7 @@
 
    One card per lead sheet of the admin's (drafts, then the archive), never
    made here: a new card comes with a new sheet. An open card first links
-   to the lead sheet (it opens in Practice mode), then lists its folders ("MatRevy 26 - 0.5 op", ...), each
+   to the lead sheet and its versions (they open in Practice mode), then lists its folders ("MatRevy 26 - 0.5 op", ...), each
    collapsible with its own files. Files go only in folders.
 
    The page gets the archive and every folder as JSON; each write answers
@@ -208,7 +208,7 @@
     const isOpen = open.cards.has(sheet.id);
     const li = mk('li', 'setlist-card arr-card' + (isOpen ? ' arr-card--open' : ''));
     li.dataset.id = sheet.id;
-    li.dataset.search = `${sheet.title} ${sheet.artist || ''}`.toLowerCase();
+    li.dataset.search = `${sheet.title} ${sheet.artist || ''} ${sheet.versions.map(v => v.title).join(' ')}`.toLowerCase();
 
     const head = mk('button', 'arr-card__head');
     head.type = 'button';
@@ -232,16 +232,21 @@
     if (!isOpen) return li;
 
     const body = mk('div', 'arr-card__body');
-    // The lead sheet itself, first: it opens in Practice mode.
-    const sheetRow = mk('div', 'arr-sheet-row');
-    sheetRow.appendChild(mk('span', 'arr-kind arr-kind--sheet', 'Chart'));
-    const link = mk('a', 'arr-sheet-link', sheet.title);
-    // A viewer sees the admin's drafts read-only at /drafts/<id>.
-    link.href = !sheet.draft ? `/sheets/${encodeURIComponent(sheet.id)}`
-      : canEdit ? `/draft#${encodeURIComponent(sheet.id)}` : `/drafts/${encodeURIComponent(sheet.id)}`;
-    link.title = 'Open the lead sheet in Practice mode';
-    sheetRow.appendChild(link);
-    body.appendChild(sheetRow);
+    // The lead sheet itself, first, then its versions ("Song (MatRevy 26)",
+    // drafts all): each opens in Practice mode. A viewer sees the admin's
+    // drafts read-only at /drafts/<id>.
+    const draftHref = id => canEdit ? `/draft#${encodeURIComponent(id)}` : `/drafts/${encodeURIComponent(id)}`;
+    const charts = [[sheet.title, sheet.draft ? draftHref(sheet.id) : `/sheets/${encodeURIComponent(sheet.id)}`]]
+      .concat(sheet.versions.map(v => [v.title, draftHref(v.id)]));
+    for (const [title, href] of charts) {
+      const sheetRow = mk('div', 'arr-sheet-row');
+      sheetRow.appendChild(mk('span', 'arr-kind arr-kind--sheet', 'Chart'));
+      const link = mk('a', 'arr-sheet-link', title);
+      link.href = href;
+      link.title = 'Open the lead sheet in Practice mode';
+      sheetRow.appendChild(link);
+      body.appendChild(sheetRow);
+    }
 
     for (const folder of folders(sheet.id)) body.appendChild(buildFolder(sheet, folder));
     if (!canEdit) {

@@ -347,11 +347,29 @@ async def arrangements_page(request: Request):
     if not can_view(request):
         raise HTTPException(status_code=404)
 
-    def entry(sheet: dict, draft: bool) -> dict:
-        return {"id": sheet["id"], "title": sheet.get("title") or "Untitled", "artist": sheet.get("artist", ""), "draft": draft}
+    # Versions live under their song: no card of their own, but a link on
+    # the song's card, below its chart.
+    drafts = _drafts()
+    versions: dict[tuple[str, str], list[dict]] = {}
+    for d in drafts:
+        b = d.get("based_on")
+        if b:
+            title = d.get("title") or "Untitled"
+            name = str(d.get("version_name") or "").strip()
+            versions.setdefault((b.get("source") or "archive", b.get("id")), []).append(
+                {"id": d["id"], "title": f"{title} ({name})" if name else title}
+            )
 
-    # Versions live under their song, so they get no card.
-    catalog = [entry(d, True) for d in _drafts() if not d.get("based_on")] + [entry(s, False) for s in _archive(request)]
+    def entry(sheet: dict, draft: bool) -> dict:
+        return {
+            "id": sheet["id"],
+            "title": sheet.get("title") or "Untitled",
+            "artist": sheet.get("artist", ""),
+            "draft": draft,
+            "versions": versions.get(("local" if draft else "archive", sheet["id"]), []),
+        }
+
+    catalog = [entry(d, True) for d in drafts if not d.get("based_on")] + [entry(s, False) for s in _archive(request)]
     return templates.TemplateResponse(
         request,
         "arrangements.html",
