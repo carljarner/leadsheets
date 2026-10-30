@@ -1231,6 +1231,14 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
   transform: scale(1.15, 0.8); /* matches GLYPH_SCALE_X/Y in leadsheet-editor.js */
 }
 
+/* The loose time / key signature tiles: the staff's own digits and accidentals. */
+.palette-tile--sig {
+  font-family: 'MuseJazz', serif;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+#tile-timesig { display: inline-flex; }
+
 /* The sheet with its title/artist fields above it. Shrinks (down to
    ~560px) so the two side columns still fit beside it on a laptop; the SVG
    inside scales with it. */

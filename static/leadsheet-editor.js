@@ -567,12 +567,14 @@
   const TIMESIG_DIGIT_EM = [0.317, 0.255, 0.313, 0.322, 0.370, 0.312, 0.318, 0.311, 0.339, 0.324];
   const TIMESIG_SYMBOL_EM = 0.724, TIMESIG_SIZE = 0.86, TIMESIG_SYMBOL_SIZE = 0.42;
   function timeSigNumberEm(n) { return String(n).split('').reduce((w, d) => w + TIMESIG_DIGIT_EM[Number(d)], 0); }
-  function notestaffTimeSigWidth(el) {
-    if (!el.showTime) return 0;
-    const inkW = el.timeSymbol
+  function timeSigInkWidth(el) {
+    return el.timeSymbol
       ? TIMESIG_SYMBOL_EM * TIMESIG_SYMBOL_SIZE * el.h
       : Math.max(timeSigNumberEm(el.numerator || 4), timeSigNumberEm(el.denominator || 4)) * TIMESIG_SIZE * el.h;
-    return inkW + el.h * 0.25;
+  }
+  function notestaffTimeSigWidth(el) {
+    if (!el.showTime) return 0;
+    return timeSigInkWidth(el) + el.h * 0.25;
   }
   function notestaffLeadWidth(el) {
     return notestaffClefWidth(el) + notestaffKeySigWidth(el) + notestaffTimeSigWidth(el) + el.h * 0.13;
@@ -672,6 +674,7 @@
     glyphFont: [12, 100],
     rhythmbar: { h: [12, 100] },
     notestaff: { h: [24, 160] },
+    looseSig: { h: [12, 100] }, // a loose time / key signature's imaginary staff
   };
   function clampR(v, range) { return clamp(v, range[0], range[1]); }
   // Width/height ranges of an element (absent = that dimension isn't a free
@@ -683,6 +686,7 @@
       case 'volta': return LIMITS.volta;
       case 'rhythmbar': return { w: [rhythmBarMinWidth(el), PAGE_W], h: LIMITS.rhythmbar.h };
       case 'notestaff': return { w: [staffMinWidth(el), PAGE_W - notestaffLeadWidth(el)], h: LIMITS.notestaff.h };
+      case 'timesig': case 'keysig': return { h: LIMITS.looseSig.h };
       default: return {};
     }
   }
@@ -960,6 +964,30 @@
     const t = transposeState;
     return respelled() && !el.staged ? transposeKeySignature(shown, -t.semitones, keyPrefersFlats(model.key)) : shown;
   }
+  // A loose key signature to C cancels the key before it (`cancel`, a signed
+  // count stored like `keySignature`) with naturals. The cancelled key moves
+  // with the sheet too, but the naturals only show while the key as shown is C.
+  function displayedCancel(el) {
+    const t = transposeState;
+    const c = el.cancel || 0;
+    return c && respelled() ? transposeKeySignature(c, t.semitones, t.flats) : c;
+  }
+  // What a loose key signature draws: `{ positions, code }`, or null for C with nothing to cancel.
+  function looseKeySigGlyphs(el) {
+    const k = displayedKeySignature(el);
+    const c = k ? 0 : displayedCancel(el);
+    if (!k && !c) return null;
+    const kind = (k || c) > 0 ? 'sharp' : 'flat';
+    return {
+      positions: KEYSIG_GLYPH_POSITIONS[el.clef || 'treble'][kind].slice(0, Math.abs(k || c)),
+      code: ACCIDENTAL_CODES[k ? kind : 'natural'],
+      advance: k ? KEYSIG_ADVANCE_EM[kind] * KEYSIG_SIZE * el.h : measureTextWidth(ACCIDENTAL_CODES.natural, KEYSIG_SIZE * el.h, 'MuseJazz'),
+    };
+  }
+  function looseKeySigWidth(el) {
+    const g = looseKeySigGlyphs(el);
+    return g ? (g.positions.length - 1) * KEYSIG_STEP * el.h + g.advance : 0;
+  }
 
   // Splits a chord symbol into runs, the way it's engraved on a real chart.
   // Each run has a `kind` (see CHORD_RUN_STYLE): `base` -- the root letter,
@@ -1184,6 +1212,14 @@
       case 'rhythmbar': {
         const pad = el.h * 0.9;
         return { x: el.x, y: el.y - pad, w: el.w, h: el.h + pad };
+      }
+      case 'timesig':
+        return { x: el.x, y: el.y, w: timeSigInkWidth(el), h: el.h };
+      case 'keysig': {
+        // The accidentals reach a staff space above the top line (a sharp on
+        // the top-space G) and hang below their own position.
+        const pad = el.h * 0.3;
+        return { x: el.x, y: el.y - pad, w: Math.max(looseKeySigWidth(el), el.h * 0.3), h: el.h + 2 * pad };
       }
       case 'notestaff': {
         const pad = el.h * 0.4;
@@ -1581,13 +1617,18 @@
   // `get()` the signature as shown, `getClef()` the staff's clef (where the
   // sharps and flats sit). C first, then the sharp keys, then the flat ones.
   function keySigButton(get, getClef, onPick) {
-    const tile = sig => ({ value: sig, title: keySignatureLabel(sig), text: keySigName(sig), icon: () => miniStaffIcon(getClef(), sig, false), on: sig === get() });
     return menuButton(() => ({ icon: miniStaffIcon(getClef(), get(), false, 22), label: keySignatureLabel(get()), title: `Key: ${keySignatureLabel(get())} (click to change)` }),
-      btn => openTileMenu(btn, [
-        tile(0),
-        { heading: 'Sharps' }, ...[1, 2, 3, 4, 5, 6, 7].map(tile),
-        { heading: 'Flats' }, ...[-1, -2, -3, -4, -5, -6, -7].map(tile),
-      ], onPick, { cls: 'keysig-menu' }));
+      btn => openKeySigMenu(btn, get(), getClef(), onPick));
+  }
+  // `opts.heading` titles the menu; `opts.noC` leaves out C (none).
+  function openKeySigMenu(anchor, current, clef, onPick, opts = {}) {
+    const tile = sig => ({ value: sig, title: keySignatureLabel(sig), text: keySigName(sig), icon: () => miniStaffIcon(clef, sig, false), on: sig === current });
+    openTileMenu(anchor, [
+      ...(opts.heading ? [{ heading: opts.heading }] : []),
+      ...(opts.noC ? [] : [tile(0)]),
+      { heading: 'Sharps' }, ...[1, 2, 3, 4, 5, 6, 7].map(tile),
+      { heading: 'Flats' }, ...[-1, -2, -3, -4, -5, -6, -7].map(tile),
+    ], onPick, { cls: 'keysig-menu' });
   }
   // The song's own key: one of the 24 the repertoire uses (chords.KEYS on the
   // server, static/keys.js), or none. A key typed before the menu existed
@@ -1801,6 +1842,10 @@
       return { id: uid('el'), type: 'arrow', x1: x, y1: y, x2: x + 70, y2: y - 40, bow: { dx: 0, dy: 0 } };
     } else if (type === 'glyph') {
       return { id: uid('el'), type: 'glyph', x, y, code: opts.code || SIMILE_MARK, fontSize: 20 };
+    } else if (type === 'timesig') {
+      return { id: uid('el'), type: 'timesig', x, y, h: NOTESTAFF_DEFAULT_H, numerator: 4, denominator: 4 };
+    } else if (type === 'keysig') {
+      return { id: uid('el'), type: 'keysig', x, y, h: NOTESTAFF_DEFAULT_H, clef: 'treble', keySignature: 1 };
     } else if (type === 'rhythmbar') {
       const totalUnits = opts.cells.reduce((s, c) => s + c.duration, 0);
       return {
@@ -1847,6 +1892,28 @@
     if (type === 'title' || type === 'chordText' || type === 'text') focusEditField('text');
     else if (el.type === 'row' && rowSlotCount(el) > 0) focusSlot(el.id, 0);
     else if (el.type === 'notestaff' || el.type === 'rhythmbar') openStaffEditor(el, { idx: 0 }); // straight to writing its notes
+    else if (el.type === 'timesig' || el.type === 'keysig') openLooseSigMenu(el);
+  }
+  // A freshly placed time or key signature asks which one it is, in a menu
+  // beside it; from then on it's changed in the edit box. A key signature
+  // picked as C then asks which key its naturals cancel.
+  function openLooseSigMenu(el) {
+    const anchor = () => document.querySelector(`#sheet-svg [data-el-id="${el.id}"]`);
+    const done = () => { markDirty(); renderSvg(); renderEditBox(); };
+    if (!anchor()) return;
+    if (el.type === 'timesig') {
+      openTimeSigMenu(anchor(), timeSigOf(el), ts => { setTimeSig(el, ts); done(); });
+      return;
+    }
+    openKeySigMenu(anchor(), displayedKeySignature(el), el.clef || 'treble', sig => {
+      el.keySignature = storedKeySignature(el, sig);
+      done();
+      if (sig || !anchor()) return;
+      openKeySigMenu(anchor(), displayedCancel(el), el.clef || 'treble', c => {
+        el.cancel = storedKeySignature(el, c);
+        done();
+      }, { heading: 'Naturals cancelling', noC: true });
+    });
   }
 
   // Copies everything currently marked, a little down and to the right of the
@@ -2139,6 +2206,25 @@
     const h = el.fontSize * GLYPH_SCALE_Y;
     return { w, h };
   }
+  // A loose time or key signature: the staff's own drawing of it, on an
+  // imaginary staff from (el.x, el.y) of height el.h with no lines.
+  function renderLooseSigEl(svg, el) {
+    const b = elementBounds(el);
+    const g = svgGroup({ cls: 'el-group' });
+    const hit = svgRect(b.x, b.y, b.w, b.h, { cls: 'el-glyph-hit' });
+    hit.dataset.elId = el.id; // where its first menu opens (openLooseSigMenu)
+    g.appendChild(hit);
+    if (el.type === 'timesig') drawTimeSigAt(g, el, el.x + b.w / 2);
+    else {
+      const glyphs = looseKeySigGlyphs(el);
+      if (glyphs) drawKeySigGlyphs(g, el, el.x, glyphs.positions, glyphs.code);
+    }
+    const startX = el.x, startY = el.y;
+    wireDragAndClick(hit, (ddx, ddy) => { el.x = startX + ddx; el.y = startY + ddy; markDirty(); renderSvg(); }, null, el);
+    addResizeHandle(g, b.x + b.w, b.y + b.h, sizeDrag(el), el);
+    svg.appendChild(g);
+  }
+
   function renderGlyphEl(svg, el) {
     const size = el.fontSize;
     const { w, h } = glyphSize(el);
@@ -2523,7 +2609,11 @@
   // the staff, or the common/cut symbol across the middle line.
   function drawTimeSignature(container, el) {
     if (!el.showTime) return;
-    const cx = el.x + notestaffClefWidth(el) + notestaffKeySigWidth(el) + (notestaffTimeSigWidth(el) - el.h * 0.25) / 2;
+    drawTimeSigAt(container, el, el.x + notestaffClefWidth(el) + notestaffKeySigWidth(el) + timeSigInkWidth(el) / 2);
+  }
+  // The numbers (or symbol) centred on `cx`, on `el`'s staff (or the
+  // imaginary staff of a loose time signature).
+  function drawTimeSigAt(container, el, cx) {
     if (el.timeSymbol) {
       container.appendChild(svgText(TIMESIG_SYMBOL_CODES[el.timeSymbol], cx, pitchToY(4, el), {
         cls: 'el-notestaff-timesig', anchor: 'middle', size: el.h * TIMESIG_SYMBOL_SIZE,
@@ -2537,14 +2627,17 @@
     });
   }
 
-  function drawKeySignature(container, el) {
+  // `startX`: where the first accidental goes -- after the clef on a staff,
+  // at the element's own left edge for a loose key signature.
+  function drawKeySignature(container, el, startX = el.x + notestaffClefWidth(el)) {
     const k = displayedKeySignature(el);
     if (!k || el.hideKey) return;
     const kind = k > 0 ? 'sharp' : 'flat';
-    const positions = KEYSIG_GLYPH_POSITIONS[el.clef][kind].slice(0, Math.abs(k));
-    const startX = el.x + notestaffClefWidth(el);
+    drawKeySigGlyphs(container, el, startX, KEYSIG_GLYPH_POSITIONS[el.clef || 'treble'][kind].slice(0, Math.abs(k)), ACCIDENTAL_CODES[kind]);
+  }
+  function drawKeySigGlyphs(container, el, startX, positions, code) {
     positions.forEach((pos, i) => {
-      container.appendChild(svgText(ACCIDENTAL_CODES[kind], startX + i * KEYSIG_STEP * el.h, pitchToY(pos, el), {
+      container.appendChild(svgText(code, startX + i * KEYSIG_STEP * el.h, pitchToY(pos, el), {
         cls: 'el-notestaff-keysig', anchor: 'start', size: el.h * KEYSIG_SIZE,
       }));
     });
@@ -3061,6 +3154,7 @@
     else if (el.type === 'volta') renderVoltaEl(svg, el);
     else if (el.type === 'arrow') renderArrowEl(svg, el);
     else if (el.type === 'glyph') renderGlyphEl(svg, el);
+    else if (el.type === 'timesig' || el.type === 'keysig') renderLooseSigEl(svg, el);
     else if (el.type === 'rhythmbar') renderRhythmBarEl(svg, el);
     else if (el.type === 'notestaff') renderNoteStaffEl(svg, el);
   }
@@ -3288,7 +3382,9 @@
   }
   // A pick from the time signature menu (see openTimeSigMenu).
   function setTimeSig(el, ts) {
-    setBarTimeSig(el, ts.numerator, ts.denominator);
+    // A loose time signature has no cells to re-bar.
+    if (el.type === 'timesig') { el.numerator = ts.numerator; el.denominator = ts.denominator; }
+    else setBarTimeSig(el, ts.numerator, ts.denominator);
     if (ts.symbol) el.timeSymbol = ts.symbol; else delete el.timeSymbol;
   }
   // A staff's flat cell list cut into bars of `barUnits` (no cell crosses a boundary).
@@ -3666,6 +3762,7 @@
   const ELEMENT_NAMES = {
     title: 'Title box', chordText: 'Chord text', text: 'Text', row: 'Bars', repeat: 'Repeat sign',
     volta: 'Volta ending', arrow: 'Arrow', glyph: 'Symbol', rhythmbar: 'Rhythm bar', notestaff: 'Note staff',
+    timesig: 'Time signature', keysig: 'Key signature',
   };
   const TEXT_TYPE_OPTIONS = [
     { value: 'title', label: 'Title box' }, { value: 'chordText', label: 'Chord text' }, { value: 'text', label: 'Text' },
@@ -3799,6 +3896,27 @@
           options: GLYPH_OPTIONS.some(o => o.value === el.code) ? GLYPH_OPTIONS : [...GLYPH_OPTIONS, { value: el.code, label: 'Custom' }],
           get: e => e.code, set: (e, v) => { e.code = v; } },
         numField('Size', 'fontSize', { stepper: true, integer: true, min: LIMITS.glyphFont[0], max: LIMITS.glyphFont[1] }),
+      ] },
+      geometrySection(el),
+      actionsSection(),
+    ],
+    timesig: el => [
+      { fields: [{ kind: 'timeSig' }] },
+      geometrySection(el),
+      actionsSection(),
+    ],
+    keysig: el => [
+      { fields: [
+        { kind: 'menu', id: 'clef', label: 'Clef', make: (e, apply) => clefButton(() => e.clef || 'treble', apply),
+          set: (e, v) => { e.clef = v; } },
+        // As shown, like a note staff's Key (see storedKeySignature).
+        { kind: 'menu', id: 'keySignature', label: 'Key', newRow: true, structural: true,
+          make: (e, apply) => keySigButton(() => displayedKeySignature(e), () => e.clef || 'treble', apply),
+          set: (e, v) => { e.keySignature = storedKeySignature(e, v); } },
+        // A change to C: which key's sharps or flats its naturals cancel.
+        ...(displayedKeySignature(el) ? [] : [{ kind: 'menu', id: 'cancel', label: 'Cancels', newRow: true,
+          make: (e, apply) => keySigButton(() => displayedCancel(e), () => e.clef || 'treble', apply),
+          set: (e, v) => { if (v) e.cancel = storedKeySignature(e, v); else delete e.cancel; } }]),
       ] },
       geometrySection(el),
       actionsSection(),
@@ -4262,6 +4380,8 @@
     });
   }
   document.querySelectorAll('.palette-tile').forEach(wirePaletteDrag);
+  // Drawn like the time signature menu's tiles.
+  document.getElementById('tile-timesig').appendChild(timeSigIcon({ numerator: 4, denominator: 4 }, 24));
 
   wireMarquee();
   document.addEventListener('keydown', e => {
@@ -5128,7 +5248,8 @@
         : 'Set the sheet’s key above to transpose.'));
       return;
     }
-    const apply = () => { renderTransposeBox(); renderSvg(); };
+    // The edit box too: a loose key signature's fields depend on its key as shown.
+    const apply = () => { renderTransposeBox(); renderSvg(); renderEditBox(); };
 
     const line = mk('div', 'tr-key-line');
     line.appendChild(mk('span', 'tr-key', `Key: ${transposedKeyName()} (${formatAmount(t.semitones)})`));
