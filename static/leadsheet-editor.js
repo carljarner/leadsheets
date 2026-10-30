@@ -5844,6 +5844,17 @@
       const doc = await store.get('sheets', v.id);
       if (doc) await store.save('sheets', v.id, Object.assign(doc, { based_on: { id: archiveId, title: model.title, source: 'archive' } }));
     }
+    // Setlists that play it play the archive sheet instead (keeping its key).
+    for (const s of await store.list('setlists')) {
+      const doc = await store.get('setlists', s.id);
+      if (!doc || !(doc.rows || []).some(r => r.source === 'local' && r.id === leadsheetId)) continue;
+      doc.rows = doc.rows.map(r => {
+        if (r.source !== 'local' || r.id !== leadsheetId) return r;
+        const { source, ...row } = r;
+        return Object.assign(row, { id: archiveId });
+      });
+      await store.save('setlists', s.id, doc);
+    }
     // Its Arrangements follow it (before removing the draft, which deletes them).
     const moved = await fetch(`/arrangements/${encodeURIComponent(leadsheetId)}/move`, {
       method: 'POST',
