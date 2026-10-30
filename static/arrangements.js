@@ -8,7 +8,15 @@
 
    The page gets the archive and every folder as JSON; each write answers
    with what changed, so nothing is fetched again. Built with
-   createElement/textContent only, never innerHTML. */
+   createElement/textContent only, never innerHTML.
+
+   The setlist's gig page (setlist_view.html) shows the same cards,
+   read-only, one per song: it sets window.ARRANGEMENTS without sheets and
+   builds them with window.ArrangementCards.card(entry). Its entries also
+   carry `uid` (the card, as a song can be in a setlist twice), `foldersOf`
+   (whose arrangements: a version shows its original's), `charts` ([title,
+   href] pairs, in place of the sheet and its versions), `position` and
+   `keyLabel` (the key it's played in). */
 
 (function () {
   'use strict';
@@ -23,20 +31,23 @@
     archive: document.getElementById('arr-archive'),
   };
   const search = document.getElementById('arr-search');
+  // The Arrangements page itself, rather than the gig page's cards.
+  const onPage = !!lists.drafts;
 
-  // Open cards and folders, remembered in this browser.
+  // Open folders are remembered in this browser; open cards only until
+  // the page is left, so every card starts closed.
   const open = loadOpen();
   function loadOpen() {
     try {
       const saved = JSON.parse(localStorage.getItem(OPEN_KEY) || '{}');
-      return { cards: new Set(saved.cards || []), folders: new Set(saved.folders || []) };
+      return { cards: new Set(), folders: new Set(saved.folders || []) };
     } catch (e) {
       return { cards: new Set(), folders: new Set() };
     }
   }
   function saveOpen() {
     try {
-      localStorage.setItem(OPEN_KEY, JSON.stringify({ cards: [...open.cards], folders: [...open.folders] }));
+      localStorage.setItem(OPEN_KEY, JSON.stringify({ folders: [...open.folders] }));
     } catch (e) { /* private window: just not remembered */ }
   }
 
@@ -57,6 +68,10 @@
     b.setAttribute('aria-label', title);
     return b;
   }
+
+  // A card's own key, and whose arrangements it shows.
+  function cardKey(sheet) { return sheet.uid || sheet.id; }
+  function ownerId(sheet) { return sheet.foldersOf || sheet.id; }
 
   function folders(sheetId) {
     if (!foldersBySheet[sheetId]) foldersBySheet[sheetId] = [];
@@ -168,10 +183,13 @@
     modalSubmit = null;
   }
 
-  modalOk.addEventListener('click', () => { if (modalSubmit) modalSubmit(); });
-  document.getElementById('arr-modal-cancel').addEventListener('click', closeModal);
-  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  // Only the admin's Arrangements page has the dialog.
+  if (modal) {
+    modalOk.addEventListener('click', () => { if (modalSubmit) modalSubmit(); });
+    document.getElementById('arr-modal-cancel').addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  }
 
   /* ---------- cards ---------- */
   function render() {
@@ -186,10 +204,9 @@
     filter();
   }
 
-  function rerenderCard(sheetId) {
-    const sheet = sheets.find(s => s.id === sheetId);
-    const node = document.querySelector(`.arr-card[data-id="${CSS.escape(sheetId)}"]`);
-    if (sheet && node) node.replaceWith(buildCard(sheet));
+  function rerenderCard(sheet) {
+    const node = document.querySelector(`.arr-card[data-id="${CSS.escape(cardKey(sheet))}"]`);
+    if (node) node.replaceWith(buildCard(sheet));
   }
 
   // Hides cards in place rather than rebuilding them, so typing keeps focus.
@@ -202,18 +219,20 @@
     }
     document.getElementById('arr-search-empty').hidden = !sheets.length || shown > 0;
   }
-  search.addEventListener('input', filter);
+  if (onPage) search.addEventListener('input', filter);
 
   function buildCard(sheet) {
-    const isOpen = open.cards.has(sheet.id);
+    const key = cardKey(sheet);
+    const isOpen = open.cards.has(key);
     const li = mk('li', 'setlist-card arr-card' + (isOpen ? ' arr-card--open' : ''));
-    li.dataset.id = sheet.id;
-    li.dataset.search = `${sheet.title} ${sheet.artist || ''} ${sheet.versions.map(v => v.title).join(' ')}`.toLowerCase();
+    li.dataset.id = key;
+    li.dataset.search = `${sheet.title} ${sheet.artist || ''} ${(sheet.versions || []).map(v => v.title).join(' ')}`.toLowerCase();
 
     const head = mk('button', 'arr-card__head');
     head.type = 'button';
     head.setAttribute('aria-expanded', String(isOpen));
     head.appendChild(mk('span', 'arr-chevron', isOpen ? '▾' : '▸'));
+    if (sheet.position) head.appendChild(mk('span', 'arr-position', `${sheet.position}.`));
     // One line each, cut short with "…"; the full text shows on hover.
     head.title = sheet.artist ? `${sheet.title} – ${sheet.artist}` : sheet.title;
     const titles = mk('span', 'arr-card__titles');
@@ -222,11 +241,12 @@
     titles.appendChild(header);
     if (sheet.artist) titles.appendChild(mk('span', 'leadsheet-card__artist arr-ellipsis', sheet.artist));
     head.appendChild(titles);
+    if (sheet.keyLabel) head.appendChild(mk('span', 'arr-key', sheet.keyLabel));
     head.addEventListener('click', () => {
-      if (open.cards.has(sheet.id)) open.cards.delete(sheet.id);
-      else open.cards.add(sheet.id);
+      if (open.cards.has(key)) open.cards.delete(key);
+      else open.cards.add(key);
       saveOpen();
-      rerenderCard(sheet.id);
+      rerenderCard(sheet);
     });
     li.appendChild(head);
     if (!isOpen) return li;
@@ -236,7 +256,7 @@
     // drafts all): each opens in Practice mode. A viewer sees the admin's
     // drafts read-only at /drafts/<id>.
     const draftHref = id => canEdit ? `/draft#${encodeURIComponent(id)}` : `/drafts/${encodeURIComponent(id)}`;
-    const charts = [[sheet.title, sheet.draft ? draftHref(sheet.id) : `/sheets/${encodeURIComponent(sheet.id)}`]]
+    const charts = sheet.charts || [[sheet.title, sheet.draft ? draftHref(sheet.id) : `/sheets/${encodeURIComponent(sheet.id)}`]]
       .concat(sheet.versions.map(v => [v.title, draftHref(v.id)]));
     for (const [title, href] of charts) {
       const sheetRow = mk('div', 'arr-sheet-row');
@@ -248,9 +268,9 @@
       body.appendChild(sheetRow);
     }
 
-    for (const folder of folders(sheet.id)) body.appendChild(buildFolder(sheet, folder));
+    for (const folder of folders(ownerId(sheet))) body.appendChild(buildFolder(sheet, folder));
     if (!canEdit) {
-      if (!folders(sheet.id).length) body.appendChild(mk('p', 'muted arr-folder__empty', 'No arrangements yet.'));
+      if (!folders(ownerId(sheet)).length) body.appendChild(mk('p', 'muted arr-folder__empty', 'No arrangements yet.'));
       li.appendChild(body);
       return li;
     }
@@ -281,7 +301,7 @@
       if (open.folders.has(folder.id)) open.folders.delete(folder.id);
       else open.folders.add(folder.id);
       saveOpen();
-      rerenderCard(sheet.id);
+      rerenderCard(sheet);
     });
     headRow.appendChild(toggle);
     node.appendChild(headRow);
@@ -358,10 +378,10 @@
         const result = await api(`${base(sheet.id)}/folders`, { name });
         if (!result.ok) return result.message;
         folders(sheet.id).push(result.data);
-        open.cards.add(sheet.id);
+        open.cards.add(cardKey(sheet));
         open.folders.add(result.data.id);
         saveOpen();
-        rerenderCard(sheet.id);
+        rerenderCard(sheet);
       },
     });
   }
@@ -376,7 +396,7 @@
         const result = await api(`${base(sheet.id)}/folders/${folder.id}`, { name });
         if (!result.ok) return result.message;
         folder.name = result.data.name;
-        rerenderCard(sheet.id);
+        rerenderCard(sheet);
       },
     });
   }
@@ -394,14 +414,14 @@
         foldersBySheet[sheet.id] = folders(sheet.id).filter(f => f !== folder);
         open.folders.delete(folder.id);
         saveOpen();
-        rerenderCard(sheet.id);
+        rerenderCard(sheet);
       },
     });
   }
 
   /* ---------- files ---------- */
   function fileUrl(sheet, file, download) {
-    return `${base(sheet.id)}/files/${file.id}${download ? '?download=1' : ''}`;
+    return `${base(ownerId(sheet))}/files/${file.id}${download ? '?download=1' : ''}`;
   }
 
   function kindBadge(fileExt) {
@@ -453,7 +473,7 @@
         const result = await api(`${base(sheet.id)}/files/${file.id}`, { name });
         if (!result.ok) return result.message;
         file.name = result.data.name;
-        rerenderCard(sheet.id);
+        rerenderCard(sheet);
       },
     });
   }
@@ -468,7 +488,7 @@
         const result = await api(`${base(sheet.id)}/files/${file.id}/delete`);
         if (!result.ok) return result.message;
         folder.files = folder.files.filter(f => f !== file);
-        rerenderCard(sheet.id);
+        rerenderCard(sheet);
       },
     });
   }
@@ -514,7 +534,7 @@
     let done = 0;
     for (const { file, name } of items) {
       uploadStatus.set(folder.id, items.length > 1 ? `Uploading ${done + failed.length + 1} of ${items.length}…` : 'Uploading…');
-      rerenderCard(sheet.id);
+      rerenderCard(sheet);
       const url = `${base(sheet.id)}/folders/${folder.id}/files?name=${encodeURIComponent(name)}`;
       const result = await api(url, file);
       if (!result.ok) {
@@ -526,12 +546,23 @@
       done++;
     }
     uploadStatus.delete(folder.id);
-    rerenderCard(sheet.id);
+    rerenderCard(sheet);
     if (failed.length) alert(`Couldn't upload ${failed.join('\n')}`);
   }
 
   window.addEventListener('beforeunload', e => {
     if (uploadStatus.size) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  window.ArrangementCards = { card: buildCard };
+  if (!onPage) return;
+
+  // Back/forward can restore the page as it was left; close the cards then too.
+  window.addEventListener('pageshow', e => {
+    if (e.persisted && open.cards.size) {
+      open.cards.clear();
+      render();
+    }
   });
 
   render();

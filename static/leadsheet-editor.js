@@ -732,6 +732,20 @@
   const NOTE_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   const FLAT_MAJOR_ROOTS = [1, 3, 5, 8, 10]; // Db Eb F Ab Bb
   const transposeState = { semitones: 0, flats: false, flatsChosen: false, pickerOpen: isViewer() };
+  // ?key=E opens the sheet transposed to E, as the setlist's gig page links
+  // to it (the key the setlist plays it in); a key of the other mode, or a
+  // sheet without a key, is ignored. Only what's drawn changes.
+  if (!window.LEADSHEET_BUNDLE_PAGE) {
+    const wanted = parseKey(new URLSearchParams(location.search).get('key'));
+    const own = parseKey(model.key);
+    if (wanted && own && wanted.minor === own.minor) {
+      let d = (((wanted.semitone - own.semitone) % 12) + 12) % 12;
+      if (d > 6) d -= 12; // the shorter way round, like the transpose box
+      // Spelled as a key in the transpose box is (semitonePrefersFlats).
+      transposeState.semitones = d;
+      transposeState.flats = semitonePrefersFlats(wanted.semitone, wanted.minor);
+    }
+  }
   // Whether what's drawn differs from what's stored: transposed, or -- in the
   // sheet's own key -- spelled with the other accidentals (C# for Db) because
   // that was picked in the transpose box.

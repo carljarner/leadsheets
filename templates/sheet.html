@@ -2,7 +2,7 @@
 {% block title %}{{ sheet.title }}{% endblock %}
 {% block container_class %}container--full{% endblock %}
 {% block content %}
-<p class="no-print"><a class="back" href="/sheets">&larr; Lead Sheets</a></p>
+<p class="no-print"><a class="back" href="{{ back.href }}">&larr; {{ back.label }}</a></p>
 
 {% include "_leadsheet_editor_body.html" %}
 {% endblock %}

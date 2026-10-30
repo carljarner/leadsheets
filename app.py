@@ -195,8 +195,23 @@ async def sheets_create(request: Request):
         return Response(content=str(exc), status_code=400)
 
 
+# Where a sheet page's back link goes: the Lead Sheets tab, or -- for a
+# chart opened from a setlist's gig page -- that gig.
+_SHEETS_BACK = {"href": "/sheets", "label": "Lead Sheets"}
+
+
+def _setlist_back(request: Request) -> dict:
+    setlist_id = request.query_params.get("from", "")
+    href = f"/setlist/view#{setlist_id}" if sheets.ID_RE.fullmatch(setlist_id) else "/setlist"
+    return {"href": href, "label": "Setlist"}
+
+
 @app.get("/sheets/{leadsheet_id}", response_class=HTMLResponse)
 async def sheet_page(request: Request, leadsheet_id: str):
+    return _sheet_page(request, leadsheet_id, _SHEETS_BACK)
+
+
+def _sheet_page(request: Request, leadsheet_id: str, back: dict) -> Response:
     sheet = _archive_sheet(request, leadsheet_id)
     admin = is_admin(request)
     # A viewer gets Practice mode only, without Customize.
@@ -216,7 +231,7 @@ async def sheet_page(request: Request, leadsheet_id: str):
     return templates.TemplateResponse(
         request,
         "sheet.html",
-        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config)},
+        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config), "back": back},
     )
 
 
@@ -250,21 +265,64 @@ async def sheet_delete(leadsheet_id: str, request: Request):
     return RedirectResponse("/sheets", status_code=303)
 
 
-@app.get("/setlist", response_class=HTMLResponse)
-async def setlist_page(request: Request):
-    # The setlists live in the browser (localStorage), and so do the user's
-    # own sheets; the page gets the archive to pick from and fetches each
-    # archive sheet when making the PDF.
-    catalog = [
+# The setlists are the user's own (static/user-store.js: in the browser, or
+# on the server for the admin), so these pages draw them themselves: the
+# setlist's id is in the URL's #fragment.
+
+def _catalog(request: Request) -> list[dict]:
+    """The archive, as the setlist pages pick from and look up songs."""
+    return [
         {"id": s["id"], "title": s["title"], "artist": s.get("artist", ""), "key": s.get("key", "")}
         for s in _archive(request)
     ]
-    sheet = {"id": "", "title": "", "artist": "", "key": "", "elements": []}
+
+
+# What the editor draws off screen before the first sheet of a PDF.
+_BLANK_SHEET = {"id": "", "title": "", "artist": "", "key": "", "elements": []}
+
+
+@app.get("/setlist", response_class=HTMLResponse)
+async def setlists_page(request: Request):
+    # The setlists as gig cards, upcoming and past.
+    return templates.TemplateResponse(request, "setlists.html", {})
+
+
+@app.get("/setlist/edit", response_class=HTMLResponse)
+async def setlist_edit_page(request: Request):
+    # Gets the archive to pick from and fetches each archive sheet when
+    # making the PDF.
     return templates.TemplateResponse(
         request,
         "setlist.html",
-        {"sheets_json": _json(catalog), "sheet_json": _json(sheet)},
+        {"sheets_json": _json(_catalog(request)), "sheet_json": _json(_BLANK_SHEET)},
     )
+
+
+@app.get("/setlist/view", response_class=HTMLResponse)
+async def setlist_view_page(request: Request):
+    # The setlist as a gig, read-only: a card per song with its chart (in
+    # the setlist's key) and, for the admin and viewers, its Arrangements.
+    return templates.TemplateResponse(
+        request,
+        "setlist_view.html",
+        {
+            "sheets_json": _json(_catalog(request)),
+            "sheet_json": _json(_BLANK_SHEET),
+            "folders_json": _json(arrangements.list_all() if can_view(request) else {}),
+        },
+    )
+
+
+# A chart opened from a gig page: the sheet page as ever, but in the Setlist
+# tab and with a link back to the gig (?from=<setlist id>).
+@app.get("/setlist/sheets/{leadsheet_id}", response_class=HTMLResponse)
+async def setlist_sheet_page(request: Request, leadsheet_id: str):
+    return _sheet_page(request, leadsheet_id, _setlist_back(request))
+
+
+@app.get("/setlist/draft", response_class=HTMLResponse)
+async def setlist_draft_page(request: Request):
+    return _draft_page(request, _setlist_back(request))
 
 
 @app.get("/new")
@@ -275,6 +333,10 @@ async def new_page():
 
 @app.get("/draft", response_class=HTMLResponse)
 async def draft_page(request: Request):
+    return _draft_page(request, _SHEETS_BACK)
+
+
+def _draft_page(request: Request, back: dict) -> Response:
     # The sheet itself lives in the browser (localStorage); the page loads it
     # from the id in the URL's #fragment.
     # The admin may move it into the archive (a version replaces its original).
@@ -290,7 +352,9 @@ async def draft_page(request: Request):
     # sheets of their own.
     archive_ids = [s["id"] for s in _archive(request)]
     return templates.TemplateResponse(
-        request, "draft.html", {"config_json": _json(config), "archive_ids_json": _json(archive_ids)}
+        request,
+        "draft.html",
+        {"config_json": _json(config), "archive_ids_json": _json(archive_ids), "back": back},
     )
 
 
@@ -309,7 +373,7 @@ async def shared_draft_page(request: Request, draft_id: str):
     return templates.TemplateResponse(
         request,
         "sheet.html",
-        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config)},
+        {"sheet": sheet, "sheet_json": _json(sheet), "config_json": _json(config), "back": _SHEETS_BACK},
     )
 
 

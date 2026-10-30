@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Setlist{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% import "_setlist_pdf.html" as pdf %}
+{% block content %}
+{# A setlist as a gig, read-only: a card per song, in order, each the song's
+   Arrangements card -- its chart in the setlist's key, then its folders.
+   The setlist's id is in the URL's #fragment. #}
+<a href="/setlist" class="back-link">‹ Setlists</a>
+<div id="gig" hidden>
+  <div class="setlists-toolbar gig-toolbar">
+    <div class="gig-title">
+      <h1 id="gig-name"></h1>
+      <p id="gig-meta" class="muted"></p>
+    </div>
+    <div class="form-actions gig-actions">
+      <a id="gig-edit" class="btn-small button-link" href="/setlist/edit">Edit</a>
+      {{ pdf.buttons() }}
+    </div>
+  </div>
+  <ul id="gig-songs" class="setlist-cards arr-cards"></ul>
+  <p id="gig-empty" class="muted" hidden>No songs in this setlist yet.</p>
+</div>
+<p id="gig-missing" class="muted" hidden>This setlist isn't saved in this browser.</p>
+
+{{ pdf.render_area() }}
+{% endblock %}
+
+{% block scripts %}
+{{ pdf.scripts(sheet_json) }}
+<script>
+  window.ARRANGEMENTS = { sheets: [], folders: {{ folders_json|safe }}, canEdit: false };
+</script>
+<script src="/static/arrangements.js?v={{ static_version }}"></script>
+<script>
+  (async function () {
+    const store = window.leadsheetStore;
+    const { readKey, keyList, originalKey, rowKeyLabel, longDate } = window.SetlistPdf;
+    const archive = {{ sheets_json|safe }};
+    const byId = new Map(archive.map(s => [s.id, s]));
+    await store.forgetLostOriginals(archive.map(s => s.id));
+    const mineById = new Map((await store.list('sheets')).map(s => [s.id, s]));
+    const sheetFor = row => row.source === 'local' ? mineById.get(row.id) : byId.get(row.id);
+
+    const id = decodeURIComponent(location.hash.slice(1));
+    const setlist = id ? await store.get('setlists', id) : null;
+    if (!setlist) {
+      document.getElementById('gig-missing').hidden = false;
+      return;
+    }
+
+    // As the editor opens it: sheets deleted since are dropped, and a key
+    // that no longer fits its sheet falls back to the sheet's own.
+    const rows = (setlist.rows || []).filter(r => r.type === 'break' || sheetFor(r)).map(r => {
+      if (r.type === 'break') return { type: 'break' };
+      const sheet = sheetFor(r);
+      const sheetKey = readKey(sheet.key);
+      const fits = sheetKey && keyList(sheetKey.minor).includes(r.key);
+      const row = { type: 'song', id: r.id, key: fits ? r.key : originalKey(sheet) };
+      if (r.source === 'local') row.source = 'local';
+      return row;
+    });
+    const songRows = rows.filter(r => r.type === 'song');
+
+    const name = String(setlist.name || '').trim() || 'Untitled setlist';
+    document.title = `${name} – Setlist`;
+    document.getElementById('gig-name').textContent = name;
+    document.getElementById('gig-meta').textContent = [
+      longDate(setlist.date) || 'No date',
+      `${songRows.length} song${songRows.length === 1 ? '' : 's'}`,
+    ].join(' · ');
+    document.getElementById('gig-edit').href = `/setlist/edit#${encodeURIComponent(setlist.id)}`;
+
+    // Its chart opens in Practice mode in the setlist's key (?key=, only
+    // when that's not the sheet's own), still in the Setlist tab and with a
+    // link back here (?from=). A version has no Arrangements of its own: its
+    // card shows its original's.
+    function entry(row, position) {
+      const sheet = sheetFor(row);
+      const title = store.displayTitle(sheet);
+      const params = new URLSearchParams();
+      if (row.key && row.key !== originalKey(sheet)) params.set('key', row.key);
+      params.set('from', setlist.id);
+      const href = row.source === 'local'
+        ? `/setlist/draft?${params}#${encodeURIComponent(row.id)}`
+        : `/setlist/sheets/${encodeURIComponent(row.id)}?${params}`;
+      return {
+        id: row.id,
+        uid: `song-${position}`,
+        foldersOf: sheet.based_on ? sheet.based_on.id : row.id,
+        title,
+        artist: sheet.artist || '',
+        charts: [[title, href]],
+        position,
+        keyLabel: rowKeyLabel(sheet, row.key),
+      };
+    }
+
+    // Pauses split the songs into sets, each under its own heading once
+    // there's more than one.
+    const sets = [[]];
+    rows.forEach(r => { if (r.type === 'break') sets.push([]); else sets[sets.length - 1].push(r); });
+    const nonEmpty = sets.filter(set => set.length);
+    const list = document.getElementById('gig-songs');
+    let position = 0;
+    nonEmpty.forEach((set, i) => {
+      if (nonEmpty.length > 1) {
+        const heading = document.createElement('li');
+        heading.className = 'gig-set';
+        heading.textContent = `Set ${i + 1}`;
+        list.appendChild(heading);
+      }
+      set.forEach(row => list.appendChild(window.ArrangementCards.card(entry(row, ++position))));
+    });
+    document.getElementById('gig-empty').hidden = songRows.length > 0;
+    document.getElementById('gig').hidden = false;
+
+    window.SetlistPdf.wirePdf({
+      current: () => ({ name: setlist.name || '', date: setlist.date || '', rows }),
+      loadSheet: row => window.SetlistPdf.loadSheet(store, row, store.displayTitle(sheetFor(row))),
+      displayTitle: store.displayTitle,
+    });
+  })();
+</script>
+{% endblock %}

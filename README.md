@@ -12,10 +12,14 @@ files can be opened and downloaded. Lead Sheets lists the admin's Drafts,
 the Archive, then the viewer's own sheets (in their browser, as for any
 visitor). Every write is the admin's alone.
 
-- **Setlist** (`/setlist`): pick from your own sheets (and, for the admin,
-  the archive), put them in order (with pauses between sets), choose each
-  one's key, and download one PDF: a setlist page, then every chart in that
-  order and key. Keep as many named setlists as you like.
+- **Setlist** (`/setlist`): your setlists as gig cards (name, date, number
+  of songs), upcoming and past. **+** opens the editor (`/setlist/edit`):
+  pick from your own sheets (and, for the admin, the archive), put them in
+  order (with pauses between sets) and choose each one's key. A card opens
+  the setlist as a gig (`/setlist/view`), read-only: a card per song with
+  its chart, opened in Practice mode in the setlist's key (`?key=`), and
+  its Arrangements files. Both download one PDF: a setlist page, then every
+  chart in that order and key.
 - **Lead Sheets** (`/sheets`): your own sheets, with **Export backup** and
   **Import**. Open one to transpose it, follow its links and print it or
   save it as a PDF. **Customize** makes your own version of a sheet to

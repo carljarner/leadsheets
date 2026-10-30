@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Setlist{% endblock %}
+{% block container_class %}container--full{% endblock %}
+{% block content %}
+{# Like the James Band intern app's Gigs page: a card per setlist, upcoming
+   then past. A card opens the setlist as a gig (/setlist/view); + makes a
+   new one in the editor. #}
+<div class="setlists-toolbar">
+  <h1>Setlist</h1>
+  <a class="add-row-btn add-row-btn--inline" href="/setlist/edit#new" title="New setlist" aria-label="New setlist">+</a>
+</div>
+
+<section class="setlist-section">
+  <h2>Upcoming</h2>
+  <div id="setlists-upcoming" class="setlist-cards"></div>
+  <p id="setlists-upcoming-empty" class="muted" hidden>No upcoming setlists.</p>
+</section>
+
+<section class="setlist-section">
+  <h2>Past</h2>
+  <div id="setlists-past" class="setlist-cards"></div>
+  <p id="setlists-past-empty" class="muted" hidden>No past setlists.</p>
+</section>
+
+{% if request.session.get('role') != 'admin' %}
+<div class="top-box top-box--backup setlists-backup">
+  <h2>Backup</h2>
+  <p class="muted">Setlists and your own sheets are saved in this browser only. Export a backup to keep them safe or to move them to another device.</p>
+  <div class="local-note__actions">
+    <button type="button" id="backup-export" class="btn-small">Export backup</button>
+    <button type="button" id="backup-import" class="btn-small">Import</button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/user-store.js?v={{ static_version }}"></script>
+<script src="/static/setlist-pdf.js?v={{ static_version }}"></script>
+<script>
+  (async function () {
+    const store = window.leadsheetStore;
+
+    // The list only has names and dates; the songs are counted from each setlist.
+    const setlists = (await Promise.all((await store.list('setlists')).map(s => store.get('setlists', s.id))))
+      .filter(Boolean);
+
+    // Upcoming: from today, soonest first, then those without a date by
+    // name. Past: most recent first. (Like the intern app's split_upcoming_past.)
+    const pad = n => String(n).padStart(2, '0');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const name = s => String(s.name || '').trim() || 'Untitled setlist';
+    const byName = (a, b) => name(a).localeCompare(name(b), undefined, { sensitivity: 'base', numeric: true });
+    const upcoming = setlists.filter(s => s.date && s.date >= today).sort((a, b) => a.date.localeCompare(b.date) || byName(a, b))
+      .concat(setlists.filter(s => !s.date).sort(byName));
+    const past = setlists.filter(s => s.date && s.date < today).sort((a, b) => b.date.localeCompare(a.date) || byName(a, b));
+
+    function card(setlist) {
+      const a = document.createElement('a');
+      a.className = 'setlist-card';
+      a.href = `/setlist/view#${encodeURIComponent(setlist.id)}`;
+      const header = document.createElement('div');
+      header.className = 'setlist-card__header';
+      const date = document.createElement('span');
+      date.className = 'setlist-card__date';
+      date.textContent = window.SetlistPdf.longDate(setlist.date) || 'No date';
+      const title = document.createElement('span');
+      title.className = 'setlist-card__venue';
+      title.textContent = name(setlist);
+      header.append(date, title);
+      const count = (setlist.rows || []).filter(r => r.type === 'song').length;
+      const songs = document.createElement('p');
+      songs.className = 'muted setlist-card__songs';
+      songs.textContent = `${count} song${count === 1 ? '' : 's'}`;
+      a.append(header, songs);
+      return a;
+    }
+
+    for (const [section, list] of [['upcoming', upcoming], ['past', past]]) {
+      document.getElementById(`setlists-${section}`).replaceChildren(...list.map(card));
+      document.getElementById(`setlists-${section}-empty`).hidden = list.length > 0;
+    }
+
+    // Only viewers have backup buttons: the admin's setlists are on the server.
+    if (document.getElementById('backup-export')) {
+      store.wireBackupButtons(
+        document.getElementById('backup-export'),
+        document.getElementById('backup-import'),
+        () => location.reload(),
+      );
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,51 @@
+{# The setlist's Share and PDF, for the editor and the gig page; wired by
+   static/setlist-pdf.js. Imported: {% import "_setlist_pdf.html" as pdf %}. #}
+
+{# What Share and PDF open: the sheets alone, or after a setlist page. #}
+{% macro bundle_menu() %}
+<ul class="setlist-menu__list bundle-menu__list" role="menu" hidden>
+  <li><button type="button" class="setlist-menu__item" role="menuitem" data-with-setlist="0">Sheets</button></li>
+  <li><button type="button" class="setlist-menu__item" role="menuitem" data-with-setlist="1">Sheets + setlist</button></li>
+</ul>
+{% endmacro %}
+
+{% macro buttons() %}
+<div class="bundle-menu">
+  <button type="button" id="bundle-share" class="btn-small" aria-haspopup="menu" aria-expanded="false">Share</button>
+  {{ bundle_menu() }}
+</div>
+<div class="bundle-actions">
+  <span id="bundle-status" class="save-status"></span>
+  <div class="bundle-menu bundle-menu--end">
+    <button type="button" id="bundle-download" class="primary btn-small" aria-haspopup="menu" aria-expanded="false">PDF</button>
+    {{ bundle_menu() }}
+  </div>
+</div>
+{% endmacro %}
+
+{# The progress modal, and the editor's own sheet page off screen: each
+   song is drawn there in turn and captured for the PDF. #}
+{% macro render_area() %}
+<div id="bundle-modal" class="modal-overlay" hidden>
+  <div class="modal-box modal-box--centered">
+    <p id="bundle-modal-text">Preparing lead sheets…</p>
+    <div class="progress"><div id="bundle-modal-bar" class="progress__bar"></div></div>
+  </div>
+</div>
+
+<div class="bundle-render" aria-hidden="true">
+  {% include "_leadsheet_editor_body.html" %}
+</div>
+{% endmacro %}
+
+{# Before the page's own script: the editor in bundle mode, then the PDF code. #}
+{% macro scripts(sheet_json) %}
+<script>
+  window.LEADSHEET_BUNDLE_PAGE = true;
+  const initialSheet = {{ sheet_json|safe }};
+  const leadsheetId = '';
+</script>
+<script src="/static/user-store.js?v={{ static_version }}"></script>
+<script src="/static/leadsheet-editor.js?v={{ static_version }}"></script>
+<script src="/static/setlist-pdf.js?v={{ static_version }}"></script>
+{% endmacro %}
