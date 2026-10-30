@@ -1976,6 +1976,8 @@ input.top-box__search {
 
 #sheet-pick-list li { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 #sheet-pick-list li:hover { border-color: var(--accent-2); }
+/* The song the search field's Tab / arrow keys are on. */
+#sheet-pick-list li.is-active { border-color: var(--accent); background: rgba(255,90,78,0.1); }
 #sheet-pick-list li.is-selected {
   border-color: var(--accent-2);
   background: rgba(79,215,209,0.12);

@@ -420,6 +420,10 @@
     const pickListEl = document.getElementById('sheet-pick-list');
     const searchInput = document.getElementById('sheet-search');
     let searchTerms = [];
+    // The song the search field's Tab / arrow keys have moved to, as its
+    // place among the songs that can still be chosen; Enter adds it.
+    // Typing a search moves it to the first match.
+    let activeIndex = -1;
 
     // The user's own sheets first, under their own heading, then the archive.
     // Versions (made with Customize) are listed each on its own, right under
@@ -453,7 +457,11 @@
         }
         const isChosen = chosen.has(rowKey({ source, id: sheet.id }));
         li.classList.toggle('is-selected', isChosen);
-        if (!isChosen) li.addEventListener('click', () => addSong(sheet, source));
+        if (!isChosen) {
+          li.classList.add('pick-list__choice');
+          li.addEventListener('click', () => chooseSong(sheet, source));
+          li.choose = () => chooseSong(sheet, source);
+        }
         pickListEl.appendChild(li);
       };
       const addGroup = (sheets, source, heading) => {
@@ -476,12 +484,46 @@
       const ownSheets = mine.filter(s => !isListedVersion(s));
       addGroup(ownSheets, 'local', ownSheets.length ? 'Your sheets' : '');
       addGroup(archive, undefined, ownSheets.length ? 'Archive' : '');
+      showActive();
+    }
+
+    const choices = () => [...pickListEl.querySelectorAll('.pick-list__choice')];
+    function showActive() {
+      const items = choices();
+      if (activeIndex >= items.length) activeIndex = items.length - 1;
+      items.forEach((li, i) => li.classList.toggle('is-active', i === activeIndex));
+      if (items[activeIndex]) items[activeIndex].scrollIntoView({ block: 'nearest' });
     }
 
     searchInput.addEventListener('input', () => {
       searchTerms = searchInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+      activeIndex = searchTerms.length ? 0 : -1;
       renderPickList();
     });
+    searchInput.addEventListener('keydown', e => {
+      const items = choices();
+      const back = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey);
+      const forward = e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
+      if ((back || forward) && items.length) {
+        e.preventDefault();
+        if (activeIndex < 0) activeIndex = forward ? 0 : items.length - 1;
+        else activeIndex = (activeIndex + (forward ? 1 : -1) + items.length) % items.length;
+        showActive();
+      } else if (e.key === 'Enter' && items[activeIndex]) {
+        e.preventDefault();
+        items[activeIndex].choose();
+      }
+    });
+
+    // Choosing a song clears the search and leaves the cursor in it, ready
+    // for the next one.
+    function chooseSong(sheet, source) {
+      searchInput.value = '';
+      searchTerms = [];
+      activeIndex = -1;
+      addSong(sheet, source);
+      searchInput.focus();
+    }
 
     function addSong(sheet, source) {
       const song = { uid: nextUid(), type: 'song', id: sheet.id, key: originalKey(sheet) };
