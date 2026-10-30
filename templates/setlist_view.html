@@ -29,20 +29,26 @@
 {% if admin %}
 {# The setlist's share link: anyone with it sees this gig, without logging in. #}
 <div id="share-modal" class="modal-overlay" hidden>
-  <div class="modal-box modal-box--centered share-box">
-    <p>Share link</p>
-    <p class="muted share-box__note">Anyone with the link sees this setlist, its charts and their Arrangements, without logging in.</p>
-    <input type="text" id="share-url" readonly hidden />
-    <p id="share-status" class="share-box__status" hidden></p>
-    <div id="share-actions" class="modal-actions">
-      <button type="button" id="share-close" class="btn-small">Close</button>
-      <button type="button" id="share-off" class="danger btn-small" hidden>Turn off</button>
-      <button type="button" id="share-new" class="btn-small" hidden>New link</button>
-      <button type="button" id="share-copy" class="primary btn-small">Create link</button>
+  <div class="modal-box share-box" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <button type="button" id="share-close" class="share-box__close" aria-label="Close" title="Close">×</button>
+    <p id="share-title" class="share-box__title">Share link</p>
+    <p class="share-box__note">Anyone with the link sees this setlist, its charts and their Arrangements, without logging in.</p>
+    <div id="share-link" class="share-box__link" hidden>
+      <input type="text" id="share-url" readonly aria-label="Share link" />
+      <button type="button" id="share-copy" class="primary btn-small">Copy</button>
     </div>
-    <div id="share-confirm" class="modal-actions" hidden>
-      <button type="button" id="share-confirm-cancel" class="btn-small">Cancel</button>
-      <button type="button" id="share-confirm-ok" class="danger btn-small"></button>
+    <p id="share-status" class="share-box__status" hidden></p>
+    <div id="share-actions" class="share-box__actions">
+      <button type="button" id="share-off" class="danger btn-small" hidden>Turn off</button>
+      <button type="button" id="share-create" class="primary btn-small" hidden>Create link</button>
+    </div>
+    {# Turn off asks first, in its place. #}
+    <div id="share-confirm" class="share-box__actions share-box__confirm" hidden>
+      <p class="share-box__ask">The old link will stop working.</p>
+      <div class="share-box__confirm-buttons">
+        <button type="button" id="share-confirm-cancel" class="btn-small">Cancel</button>
+        <button type="button" id="share-confirm-ok" class="danger btn-small">Turn off</button>
+      </div>
     </div>
   </div>
 </div>
@@ -170,20 +176,21 @@
 
   {% if admin %}
   // Link: the setlist's share link (/me/setlists/<id>/share), made the first
-  // time. New link and Turn off ask first: the band's link stops working.
+  // time. Turn off asks first: the band's link stops working, and Create
+  // link then makes a new one.
   function wireShareLink(setlistId) {
     const url = `/me/setlists/${encodeURIComponent(setlistId)}/share`;
     const modal = document.getElementById('share-modal');
     const input = document.getElementById('share-url');
     const status = document.getElementById('share-status');
+    const linkRow = document.getElementById('share-link');
     const copyBtn = document.getElementById('share-copy');
-    const newBtn = document.getElementById('share-new');
+    const createBtn = document.getElementById('share-create');
     const offBtn = document.getElementById('share-off');
     const actions = document.getElementById('share-actions');
-    const confirmRow = document.getElementById('share-confirm');
+    const confirm = document.getElementById('share-confirm');
     const confirmOk = document.getElementById('share-confirm-ok');
     let link = null;
-    let pending = null;
 
     function show(text, error) {
       status.textContent = text || '';
@@ -191,12 +198,9 @@
       status.classList.toggle('share-box__status--error', !!error);
     }
     function render() {
-      input.hidden = newBtn.hidden = offBtn.hidden = !link;
+      linkRow.hidden = offBtn.hidden = !link;
+      createBtn.hidden = !!link;
       input.value = link || '';
-      copyBtn.textContent = link ? 'Copy link' : 'Create link';
-      actions.hidden = false;
-      confirmRow.hidden = true;
-      pending = null;
     }
     async function call(method) {
       const resp = await fetch(url, { method });
@@ -208,15 +212,17 @@
       try {
         await navigator.clipboard.writeText(link);
         show('Copied. Send it to the band.');
+        input.select();
       } catch (err) {
         input.select();
         show('Copy the link above.');
       }
     }
     async function run(fn) {
-      copyBtn.disabled = newBtn.disabled = offBtn.disabled = confirmOk.disabled = true;
+      const buttons = [copyBtn, createBtn, offBtn, confirmOk];
+      buttons.forEach(b => { b.disabled = true; });
       try { await fn(); } catch (err) { show(`Couldn't change the link: ${err.message}`, true); }
-      copyBtn.disabled = newBtn.disabled = offBtn.disabled = confirmOk.disabled = false;
+      buttons.forEach(b => { b.disabled = false; });
     }
 
     document.getElementById('gig-link').addEventListener('click', () => run(async () => {
@@ -225,37 +231,37 @@
       link = await call('GET');
       render();
     }));
-    copyBtn.addEventListener('click', () => run(async () => {
-      if (!link) { link = await call('POST'); render(); }
+    copyBtn.addEventListener('click', copy);
+    createBtn.addEventListener('click', () => run(async () => {
+      link = await call('POST');
+      render();
       await copy();
     }));
-    function ask(kind) {
-      pending = kind;
-      confirmOk.textContent = kind === 'new' ? 'New link' : 'Turn off';
-      show('The link you have sent stops working.');
-      actions.hidden = true;
-      confirmRow.hidden = false;
+
+    function askConfirm(asking) {
+      confirm.hidden = !asking;
+      actions.hidden = asking;
     }
-    newBtn.addEventListener('click', () => ask('new'));
-    offBtn.addEventListener('click', () => ask('off'));
-    document.getElementById('share-confirm-cancel').addEventListener('click', () => { show(''); render(); });
+    const closeConfirm = () => askConfirm(false);
+    offBtn.addEventListener('click', () => { show(''); askConfirm(true); });
+    document.getElementById('share-confirm-cancel').addEventListener('click', closeConfirm);
     confirmOk.addEventListener('click', () => run(async () => {
-      if (pending === 'new') {
-        link = await call('POST');
-        render();
-        await copy();
-      } else {
-        await call('DELETE');
-        link = null;
-        render();
-        show('The link is turned off.');
-      }
+      closeConfirm();
+      await call('DELETE');
+      link = null;
+      render();
+      show('The link is turned off.');
     }));
 
-    const close = () => { modal.hidden = true; };
+    const close = () => { closeConfirm(); modal.hidden = true; };
     document.getElementById('share-close').addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) close(); });
+    // Esc closes the question first, then the dialog.
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (!confirm.hidden) closeConfirm();
+      else if (!modal.hidden) close();
+    });
   }
   {% endif %}
 </script>

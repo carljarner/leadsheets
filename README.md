@@ -24,9 +24,9 @@ visitor). Every write is the admin's alone.
     `/gig/<token>`, for the band. Anyone with it, logged in or not, sees
     that gig read-only, without the tabs: the charts in the setlist's key,
     the Arrangements files of its songs and the PDF. Nothing outside the
-    setlist is served, and an unknown token gets a 404. **New link**
-    replaces the old link and **Turn off** removes it; either way the old
-    link stops working, and so does deleting the setlist. Tokens live in
+    setlist is served, and an unknown token gets a 404. **Turn off**
+    removes the link (as does deleting the setlist); **Create link** then
+    makes a new one; the old one stays off. Tokens live in
     `DATA_DIR/shares.json` (`shares.py`). `/gig/` pages send `noindex` and
     `no-referrer`.
 - **Lead Sheets** (`/sheets`): your own sheets, with **Export backup** and

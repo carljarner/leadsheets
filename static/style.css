@@ -2296,13 +2296,53 @@ table.setlist-table tr.setlist-break-row:hover .setlist-break-cell__delete { opa
 .duplicate-box { max-width: 340px; text-align: left; }
 .duplicate-box .date-picker__trigger { width: 100%; min-width: 0; }
 .duplicate-box input { border-radius: 6px; }
-/* The gig page's Link: the setlist's share link. */
-.share-box { max-width: 420px; text-align: left; }
-.share-box .share-box__note { margin: 0.4rem 0 0.75rem; font-size: 0.85rem; }
-.share-box input { width: 100%; box-sizing: border-box; border-radius: 6px; font-size: 0.85rem; }
-.share-box__status { margin: 0.6rem 0 0; font-size: 0.85rem; }
-.share-box__status--error { color: var(--accent); }
-.share-box .modal-actions { flex-wrap: wrap; }
+/* The gig page's Link: the setlist's share link. The link and Copy on one
+   row; Turn off (or Create link) centred below, and in its place the
+   question when Turn off asks first. */
+.share-box { position: relative; max-width: 460px; }
+/* × in the top right corner closes it. */
+.share-box__confirm { flex-direction: column; align-items: center; gap: 0.75rem; }
+.share-box p.share-box__ask { margin: 0; font-size: 0.9rem; font-weight: 600; text-align: center; }
+.share-box__confirm-buttons { display: flex; gap: 0.5rem; }
+.share-box__confirm-buttons button { width: 7rem; text-align: center; }
+.share-box__close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-dim);
+}
+.share-box__close:hover { background: var(--surface-alt); color: var(--text); }
+.share-box [hidden] { display: none !important; }
+.share-box p.share-box__title { margin: 0 0 0.4rem; font-weight: 600; font-size: 1.05rem; }
+.share-box p.share-box__note { margin: 0 0 1.1rem; font-size: 0.85rem; color: var(--text-dim); line-height: 1.45; }
+.share-box__link { display: flex; gap: 0.5rem; }
+.share-box__link input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 2.2rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.share-box__link button { flex: none; height: 2.2rem; min-width: 5.5rem; }
+.share-box p.share-box__status { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-dim); }
+.share-box p.share-box__status--error { color: var(--accent); }
+.share-box__actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
 /* A setlist card with a share link. */
 .setlist-card__shared { margin-left: 0.4rem; font-size: 0.7rem; color: var(--accent-2); }
 .modal-box--centered p.duplicate-error { color: var(--accent); font-weight: 400; font-size: 0.85rem; margin: -0.3rem 0 1rem; }
