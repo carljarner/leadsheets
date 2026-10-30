@@ -44,6 +44,11 @@
     // The list only has names and dates; the songs are counted from each setlist.
     const setlists = (await Promise.all((await store.list('setlists')).map(s => store.get('setlists', s.id))))
       .filter(Boolean);
+    // The admin's setlists with a share link (/gig/<token>) say so.
+    let sharedIds = new Set();
+    if (window.LEADSHEETS_SERVER_STORE) {
+      try { sharedIds = new Set(await (await fetch('/me/shares')).json()); } catch (err) { /* just unmarked */ }
+    }
 
     // Upcoming: from today, soonest first, then those without a date by
     // name. Past: most recent first. (Like the intern app's split_upcoming_past.)
@@ -73,6 +78,7 @@
       const songs = document.createElement('p');
       songs.className = 'muted setlist-card__songs';
       songs.textContent = `${count} song${count === 1 ? '' : 's'}`;
+      if (sharedIds.has(setlist.id)) songs.appendChild(Object.assign(document.createElement('span'), { className: 'setlist-card__shared', textContent: 'Shared link' }));
       a.append(header, songs);
       return a;
     }

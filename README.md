@@ -20,6 +20,15 @@ visitor). Every write is the admin's alone.
   its chart, opened in Practice mode in the setlist's key (`?key=`), and
   its Arrangements files. Both download one PDF: a setlist page, then every
   chart in that order and key.
+  - **Share links** (admin): **Link** on a gig page makes a secret link,
+    `/gig/<token>`, for the band. Anyone with it, logged in or not, sees
+    that gig read-only, without the tabs: the charts in the setlist's key,
+    the Arrangements files of its songs and the PDF. Nothing outside the
+    setlist is served, and an unknown token gets a 404. **New link**
+    replaces the old link and **Turn off** removes it; either way the old
+    link stops working, and so does deleting the setlist. Tokens live in
+    `DATA_DIR/shares.json` (`shares.py`). `/gig/` pages send `noindex` and
+    `no-referrer`.
 - **Lead Sheets** (`/sheets`): your own sheets, with **Export backup** and
   **Import**. Open one to transpose it, follow its links and print it or
   save it as a PDF. **Customize** makes your own version of a sheet to

@@ -16,13 +16,14 @@
    carry `uid` (the card, as a song can be in a setlist twice), `foldersOf`
    (whose arrangements: a version shows its original's), `charts` ([title,
    href] pairs, in place of the sheet and its versions), `position` and
-   `keyLabel` (the key it's played in). */
+   `keyLabel` (the key it's played in). A share link's gig page (/gig/<token>)
+   also sets `baseUrl`, where its files are fetched from. */
 
 (function () {
   'use strict';
 
   // A viewer (canEdit false) only opens and downloads.
-  const { sheets, folders: foldersBySheet, maxMb, canEdit } = window.ARRANGEMENTS;
+  const { sheets, folders: foldersBySheet, maxMb, canEdit, baseUrl = '/arrangements' } = window.ARRANGEMENTS;
   const ALLOWED_EXTS = ['pdf', 'mscz', 'mscx'];
   const OPEN_KEY = 'arrangements-open';
 
@@ -92,7 +93,7 @@
   }
 
   function base(sheetId) {
-    return `/arrangements/${encodeURIComponent(sheetId)}`;
+    return `${baseUrl}/${encodeURIComponent(sheetId)}`;
   }
 
   async function api(url, body) {

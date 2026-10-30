@@ -2296,6 +2296,15 @@ table.setlist-table tr.setlist-break-row:hover .setlist-break-cell__delete { opa
 .duplicate-box { max-width: 340px; text-align: left; }
 .duplicate-box .date-picker__trigger { width: 100%; min-width: 0; }
 .duplicate-box input { border-radius: 6px; }
+/* The gig page's Link: the setlist's share link. */
+.share-box { max-width: 420px; text-align: left; }
+.share-box .share-box__note { margin: 0.4rem 0 0.75rem; font-size: 0.85rem; }
+.share-box input { width: 100%; box-sizing: border-box; border-radius: 6px; font-size: 0.85rem; }
+.share-box__status { margin: 0.6rem 0 0; font-size: 0.85rem; }
+.share-box__status--error { color: var(--accent); }
+.share-box .modal-actions { flex-wrap: wrap; }
+/* A setlist card with a share link. */
+.setlist-card__shared { margin-left: 0.4rem; font-size: 0.7rem; color: var(--accent-2); }
 .modal-box--centered p.duplicate-error { color: var(--accent); font-weight: 400; font-size: 0.85rem; margin: -0.3rem 0 1rem; }
 /* The sheet is drawn here, off screen, for the PDF. Not display:none or
    visibility:hidden -- the capture copies each element's computed style. */

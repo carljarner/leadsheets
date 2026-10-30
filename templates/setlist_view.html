@@ -5,8 +5,10 @@
 {% block content %}
 {# A setlist as a gig, read-only: a card per song, in order, each the song's
    Arrangements card -- its chart in the setlist's key, then its folders.
-   The setlist's id is in the URL's #fragment. #}
-<a href="/setlist" class="back-link">‹ Setlists</a>
+   The setlist's id is in the URL's #fragment -- or, from a share link
+   (/gig/<token>, shared set), the setlist comes with the page. #}
+{% set admin = request.session.get('role') == 'admin' and not shared %}
+{% if not shared %}<a href="/setlist" class="back-link">‹ Setlists</a>{% endif %}
 <div id="gig" hidden>
   <div class="setlists-toolbar gig-toolbar">
     <div class="gig-title">
@@ -14,7 +16,8 @@
       <p id="gig-meta" class="muted"></p>
     </div>
     <div class="form-actions gig-actions">
-      <a id="gig-edit" class="btn-small button-link" href="/setlist/edit">Edit</a>
+      {% if not shared %}<a id="gig-edit" class="btn-small button-link" href="/setlist/edit">Edit</a>{% endif %}
+      {% if admin %}<button type="button" id="gig-link" class="btn-small">Link</button>{% endif %}
       {{ pdf.buttons() }}
     </div>
   </div>
@@ -23,27 +26,61 @@
 </div>
 <p id="gig-missing" class="muted" hidden>This setlist isn't saved in this browser.</p>
 
+{% if admin %}
+{# The setlist's share link: anyone with it sees this gig, without logging in. #}
+<div id="share-modal" class="modal-overlay" hidden>
+  <div class="modal-box modal-box--centered share-box">
+    <p>Share link</p>
+    <p class="muted share-box__note">Anyone with the link sees this setlist, its charts and their Arrangements, without logging in.</p>
+    <input type="text" id="share-url" readonly hidden />
+    <p id="share-status" class="share-box__status" hidden></p>
+    <div id="share-actions" class="modal-actions">
+      <button type="button" id="share-close" class="btn-small">Close</button>
+      <button type="button" id="share-off" class="danger btn-small" hidden>Turn off</button>
+      <button type="button" id="share-new" class="btn-small" hidden>New link</button>
+      <button type="button" id="share-copy" class="primary btn-small">Create link</button>
+    </div>
+    <div id="share-confirm" class="modal-actions" hidden>
+      <button type="button" id="share-confirm-cancel" class="btn-small">Cancel</button>
+      <button type="button" id="share-confirm-ok" class="danger btn-small"></button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {{ pdf.render_area() }}
 {% endblock %}
 
 {% block scripts %}
+{% set admin = request.session.get('role') == 'admin' and not shared %}
 {{ pdf.scripts(sheet_json) }}
 <script>
   window.ARRANGEMENTS = { sheets: [], folders: {{ folders_json|safe }}, canEdit: false };
+  {% if shared_json %}
+  window.SHARED_GIG = {{ shared_json|safe }};
+  window.ARRANGEMENTS.baseUrl = `${window.SHARED_GIG.base}/arrangements`;
+  {% endif %}
 </script>
 <script src="/static/arrangements.js?v={{ static_version }}"></script>
 <script>
   (async function () {
     const store = window.leadsheetStore;
     const { readKey, keyList, originalKey, rowKeyLabel, longDate } = window.SetlistPdf;
-    const archive = {{ sheets_json|safe }};
-    const byId = new Map(archive.map(s => [s.id, s]));
-    await store.forgetLostOriginals(archive.map(s => s.id));
-    const mineById = new Map((await store.list('sheets')).map(s => [s.id, s]));
-    const sheetFor = row => row.source === 'local' ? mineById.get(row.id) : byId.get(row.id);
-
-    const id = decodeURIComponent(location.hash.slice(1));
-    const setlist = id ? await store.get('setlists', id) : null;
+    // From a share link: the setlist and its songs' whole sheets, by id.
+    const shared = window.SHARED_GIG || null;
+    let setlist, sheetFor;
+    if (shared) {
+      setlist = shared.setlist;
+      sheetFor = row => (row.source === 'local' ? shared.local : shared.archive)[row.id];
+    } else {
+      const archive = {{ sheets_json|safe }};
+      const byId = new Map(archive.map(s => [s.id, s]));
+      await store.forgetLostOriginals(archive.map(s => s.id));
+      const mineById = new Map((await store.list('sheets')).map(s => [s.id, s]));
+      sheetFor = row => row.source === 'local' ? mineById.get(row.id) : byId.get(row.id);
+      const id = decodeURIComponent(location.hash.slice(1));
+      setlist = id ? await store.get('setlists', id) : null;
+    }
     if (!setlist) {
       document.getElementById('gig-missing').hidden = false;
       return;
@@ -69,21 +106,24 @@
       longDate(setlist.date) || 'No date',
       `${songRows.length} song${songRows.length === 1 ? '' : 's'}`,
     ].join(' · ');
-    document.getElementById('gig-edit').href = `/setlist/edit#${encodeURIComponent(setlist.id)}`;
+    if (!shared) document.getElementById('gig-edit').href = `/setlist/edit#${encodeURIComponent(setlist.id)}`;
 
     // Its chart opens in Practice mode in the setlist's key (?key=, only
     // when that's not the sheet's own), still in the Setlist tab and with a
-    // link back here (?from=). A version has no Arrangements of its own: its
-    // card shows its original's.
+    // link back here (?from=; a share link's charts link back by themselves).
+    // A version has no Arrangements of its own: its card shows its original's.
     function entry(row, position) {
       const sheet = sheetFor(row);
       const title = store.displayTitle(sheet);
       const params = new URLSearchParams();
       if (row.key && row.key !== originalKey(sheet)) params.set('key', row.key);
-      params.set('from', setlist.id);
-      const href = row.source === 'local'
-        ? `/setlist/draft?${params}#${encodeURIComponent(row.id)}`
-        : `/setlist/sheets/${encodeURIComponent(row.id)}?${params}`;
+      if (!shared) params.set('from', setlist.id);
+      const query = params.toString() ? `?${params}` : '';
+      const href = shared
+        ? `${shared.base}/sheets/${encodeURIComponent(row.id)}${query}`
+        : row.source === 'local'
+          ? `/setlist/draft${query}#${encodeURIComponent(row.id)}`
+          : `/setlist/sheets/${encodeURIComponent(row.id)}${query}`;
       return {
         id: row.id,
         uid: `song-${position}`,
@@ -117,9 +157,106 @@
 
     window.SetlistPdf.wirePdf({
       current: () => ({ name: setlist.name || '', date: setlist.date || '', rows }),
-      loadSheet: row => window.SetlistPdf.loadSheet(store, row, store.displayTitle(sheetFor(row))),
+      loadSheet: row => shared
+        ? Promise.resolve(sheetFor(row))
+        : window.SetlistPdf.loadSheet(store, row, store.displayTitle(sheetFor(row))),
       displayTitle: store.displayTitle,
     });
+
+    {% if admin %}
+    wireShareLink(setlist.id);
+    {% endif %}
   })();
+
+  {% if admin %}
+  // Link: the setlist's share link (/me/setlists/<id>/share), made the first
+  // time. New link and Turn off ask first: the band's link stops working.
+  function wireShareLink(setlistId) {
+    const url = `/me/setlists/${encodeURIComponent(setlistId)}/share`;
+    const modal = document.getElementById('share-modal');
+    const input = document.getElementById('share-url');
+    const status = document.getElementById('share-status');
+    const copyBtn = document.getElementById('share-copy');
+    const newBtn = document.getElementById('share-new');
+    const offBtn = document.getElementById('share-off');
+    const actions = document.getElementById('share-actions');
+    const confirmRow = document.getElementById('share-confirm');
+    const confirmOk = document.getElementById('share-confirm-ok');
+    let link = null;
+    let pending = null;
+
+    function show(text, error) {
+      status.textContent = text || '';
+      status.hidden = !text;
+      status.classList.toggle('share-box__status--error', !!error);
+    }
+    function render() {
+      input.hidden = newBtn.hidden = offBtn.hidden = !link;
+      input.value = link || '';
+      copyBtn.textContent = link ? 'Copy link' : 'Create link';
+      actions.hidden = false;
+      confirmRow.hidden = true;
+      pending = null;
+    }
+    async function call(method) {
+      const resp = await fetch(url, { method });
+      if (method === 'GET' && resp.status === 404) return null;
+      if (!resp.ok) throw new Error((await resp.text()) || `Server error ${resp.status}`);
+      return method === 'DELETE' ? null : location.origin + (await resp.json()).path;
+    }
+    async function copy() {
+      try {
+        await navigator.clipboard.writeText(link);
+        show('Copied. Send it to the band.');
+      } catch (err) {
+        input.select();
+        show('Copy the link above.');
+      }
+    }
+    async function run(fn) {
+      copyBtn.disabled = newBtn.disabled = offBtn.disabled = confirmOk.disabled = true;
+      try { await fn(); } catch (err) { show(`Couldn't change the link: ${err.message}`, true); }
+      copyBtn.disabled = newBtn.disabled = offBtn.disabled = confirmOk.disabled = false;
+    }
+
+    document.getElementById('gig-link').addEventListener('click', () => run(async () => {
+      show('');
+      modal.hidden = false;
+      link = await call('GET');
+      render();
+    }));
+    copyBtn.addEventListener('click', () => run(async () => {
+      if (!link) { link = await call('POST'); render(); }
+      await copy();
+    }));
+    function ask(kind) {
+      pending = kind;
+      confirmOk.textContent = kind === 'new' ? 'New link' : 'Turn off';
+      show('The link you have sent stops working.');
+      actions.hidden = true;
+      confirmRow.hidden = false;
+    }
+    newBtn.addEventListener('click', () => ask('new'));
+    offBtn.addEventListener('click', () => ask('off'));
+    document.getElementById('share-confirm-cancel').addEventListener('click', () => { show(''); render(); });
+    confirmOk.addEventListener('click', () => run(async () => {
+      if (pending === 'new') {
+        link = await call('POST');
+        render();
+        await copy();
+      } else {
+        await call('DELETE');
+        link = null;
+        render();
+        show('The link is turned off.');
+      }
+    }));
+
+    const close = () => { modal.hidden = true; };
+    document.getElementById('share-close').addEventListener('click', close);
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) close(); });
+  }
+  {% endif %}
 </script>
 {% endblock %}

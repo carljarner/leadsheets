@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 import arrangements
+import shares
 import sheets
 import user_store
 
@@ -113,6 +114,11 @@ async def hide_login(request: Request, call_next):
     response = await call_next(request)
     if request.url.path == "/login":
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    elif request.url.path.startswith("/gig/"):
+        # A share link's token is its password: out of search, and not
+        # passed on in the Referer of links followed from it.
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
@@ -126,7 +132,7 @@ app.add_middleware(
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots():
-    return "User-agent: *\nDisallow: /login\n"
+    return "User-agent: *\nDisallow: /login\nDisallow: /gig/\n"
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -523,6 +529,10 @@ async def arrangement_file_add(sheet_id: str, folder_id: str, request: Request):
 @app.get("/arrangements/{sheet_id}/files/{file_id}")
 async def arrangement_file_get(sheet_id: str, file_id: str, request: Request):
     _arrangement_sheet(request, sheet_id)
+    return _arrangement_file(request, sheet_id, file_id)
+
+
+def _arrangement_file(request: Request, sheet_id: str, file_id: str) -> Response:
     try:
         record, path = arrangements.get_file(sheet_id, file_id)
     except KeyError:
@@ -564,6 +574,13 @@ async def arrangement_file_delete(sheet_id: str, file_id: str, request: Request)
 # Everyone else keeps theirs in the browser; the admin's are kept here, so they're
 # the same on every device. static/user-store.js calls these.
 ADMIN_USER = "admin"
+
+
+@app.get("/me/shares")
+async def me_shares(request: Request):
+    # The setlists with a share link, for the Setlist tab's cards.
+    require_admin(request)
+    return JSONResponse(shares.shared_ids(), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/me/{kind}")
@@ -609,7 +626,139 @@ async def me_delete(kind: str, doc_id: str, request: Request):
         raise HTTPException(status_code=404)
     if kind == "sheets":
         arrangements.delete_sheet(doc_id)
+    else:
+        shares.revoke(doc_id)
     return Response(status_code=204)
+
+
+# ── Share links: one of the admin's setlists for anyone with the link ──
+# /gig/<token> (shares.py) shows the setlist read-only, like its gig page,
+# and opens the charts and Arrangements files of its songs -- nothing else:
+# anything outside the setlist is a 404, as is an unknown token.
+
+def _share_link(token: str) -> dict:
+    # The path; the page adds its own origin (the proxy's, not the app's).
+    return {"path": f"/gig/{token}"}
+
+
+def _admin_setlist(setlist_id: str) -> dict:
+    try:
+        return user_store.get_doc(ADMIN_USER, "setlists", setlist_id)
+    except KeyError:
+        raise HTTPException(status_code=404)
+
+
+@app.get("/me/setlists/{setlist_id}/share")
+async def share_get(setlist_id: str, request: Request):
+    require_admin(request)
+    _admin_setlist(setlist_id)
+    token = shares.token_for(setlist_id)
+    if not token:
+        raise HTTPException(status_code=404)
+    return JSONResponse(_share_link(token), headers={"Cache-Control": "no-store"})
+
+
+@app.post("/me/setlists/{setlist_id}/share")
+async def share_create(setlist_id: str, request: Request):
+    # A new link, replacing the old one (which stops working).
+    require_admin(request)
+    _admin_setlist(setlist_id)
+    return _share_link(shares.create(setlist_id))
+
+
+@app.delete("/me/setlists/{setlist_id}/share")
+async def share_delete(setlist_id: str, request: Request):
+    require_admin(request)
+    shares.revoke(setlist_id)
+    return Response(status_code=204)
+
+
+def _shared_gig(token: str) -> dict:
+    """The shared setlist and what it may show: its songs' sheets (whole,
+    archive and the admin's drafts by id) and whose Arrangements they show
+    (a version shows its original's)."""
+    try:
+        setlist = user_store.get_doc(ADMIN_USER, "setlists", shares.resolve(token))
+    except KeyError:
+        raise HTTPException(status_code=404)
+    archive: dict[str, dict] = {}
+    local: dict[str, dict] = {}
+    for row in setlist.get("rows") or []:
+        if not isinstance(row, dict) or row.get("type") != "song" or not isinstance(row.get("id"), str):
+            continue
+        try:
+            if row.get("source") == "local":
+                sheet = user_store.get_doc(ADMIN_USER, "sheets", row["id"])
+                local[row["id"]] = dict(sheet, title=sheet.get("title") or "Untitled")
+            else:
+                archive[row["id"]] = sheets.get_leadsheet(row["id"])
+        except KeyError:
+            continue  # deleted since: the page drops it, as the editor does
+    owners = set(archive) | set(local)
+    for sheet in list(archive.values()) + list(local.values()):
+        based_on = sheet.get("based_on")
+        if isinstance(based_on, dict) and isinstance(based_on.get("id"), str):
+            owners.add(based_on["id"])
+    return {
+        "token": token,
+        "setlist": setlist,
+        "archive": archive,
+        "local": local,
+        "owners": owners,
+        "home": f"/gig/{token}",
+    }
+
+
+@app.get("/gig/{token}", response_class=HTMLResponse)
+async def shared_gig_page(request: Request, token: str):
+    gig = _shared_gig(token)
+    folders = {k: v for k, v in arrangements.list_all().items() if k in gig["owners"]}
+    shared = {
+        "setlist": gig["setlist"],
+        "archive": gig["archive"],
+        "local": gig["local"],
+        "base": gig["home"],
+    }
+    return templates.TemplateResponse(
+        request,
+        "setlist_view.html",
+        {
+            "sheets_json": _json([]),
+            "sheet_json": _json(_BLANK_SHEET),
+            "folders_json": _json(folders),
+            "shared_json": _json(shared),
+            "shared": {"home": gig["home"]},
+        },
+    )
+
+
+@app.get("/gig/{token}/sheets/{sheet_id}", response_class=HTMLResponse)
+async def shared_sheet_page(request: Request, token: str, sheet_id: str):
+    # A chart from the shared gig: Practice mode only, as for a viewer.
+    gig = _shared_gig(token)
+    sheet = gig["archive"].get(sheet_id) or gig["local"].get(sheet_id)
+    if not sheet:
+        raise HTTPException(status_code=404)
+    config = {"canEdit": False, "canCopy": False, "canMove": False, "storage": "server", "afterDeleteUrl": gig["home"]}
+    name = str(gig["setlist"].get("name") or "").strip() or "Setlist"
+    return templates.TemplateResponse(
+        request,
+        "sheet.html",
+        {
+            "sheet": sheet,
+            "sheet_json": _json(sheet),
+            "config_json": _json(config),
+            "back": {"href": gig["home"], "label": name},
+            "shared": {"home": gig["home"]},
+        },
+    )
+
+
+@app.get("/gig/{token}/arrangements/{sheet_id}/files/{file_id}")
+async def shared_arrangement_file(request: Request, token: str, sheet_id: str, file_id: str):
+    if sheet_id not in _shared_gig(token)["owners"]:
+        raise HTTPException(status_code=404)
+    return _arrangement_file(request, sheet_id, file_id)
 
 
 # ── Read API for other sites (e.g. the James Band intern app) ─────────

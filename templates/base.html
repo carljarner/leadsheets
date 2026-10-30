@@ -25,9 +25,10 @@
 </head>
 <body>
   {% block topbar %}
+  {# A share link's pages (shared set) are the gig alone: no tabs, no login. #}
   <header class="topbar">
-    <a href="/sheets" class="topbar__brand">LEADSHEETS.DK</a>
-    {% if request.session.get('role') in ('admin', 'viewer') %}
+    <a href="{{ shared.home if shared else '/sheets' }}" class="topbar__brand">LEADSHEETS.DK</a>
+    {% if not shared and request.session.get('role') in ('admin', 'viewer') %}
     <form method="post" action="/logout" class="topbar__account">
       <span class="topbar__role">{{ 'Admin' if request.session.get('role') == 'admin' else 'Viewer' }}</span>
       <button type="submit" class="btn-small">Log out</button>
@@ -36,6 +37,7 @@
   </header>
   {% endblock %}
   {% block page_nav %}
+  {% if not shared %}
   {% set section = request.url.path.split('/')[1] %}
   <nav class="main-nav">
     <div class="main-nav__tabs page-tabs">
@@ -47,6 +49,7 @@
       <a href="/draft?mode=edit#new" class="page-tabs__tab {{ 'is-active' if section == 'draft' }}">Create New</a>
     </div>
   </nav>
+  {% endif %}
   {% endblock %}
   <main class="container {% block container_class %}{% endblock %}">
     {% block content %}{% endblock %}
