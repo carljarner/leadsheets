@@ -41,6 +41,8 @@ a { color: var(--accent-2); }
 
 .container--wide { max-width: 900px; }
 .container--full { max-width: none; padding: 2rem; }
+/* The card pages: room to scroll past the last card. */
+.container--cards { padding-bottom: 300px; }
 
 .topbar {
   display: flex;

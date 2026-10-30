@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Lead Sheets{% endblock %}
-{% block container_class %}container--full{% endblock %}
+{% block container_class %}container--full container--cards{% endblock %}
 {% block content %}
 {% set admin = request.session.get('role') == 'admin' %}
 {# A viewer sees the admin's drafts and the archive (read-only), then their own sheets. #}
