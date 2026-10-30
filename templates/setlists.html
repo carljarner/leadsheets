@@ -61,6 +61,13 @@
       .concat(setlists.filter(s => !s.date).sort(byName));
     const past = setlists.filter(s => s.date && s.date < today).sort((a, b) => b.date.localeCompare(a.date) || byName(a, b));
 
+    // "2026-09-05" as "5 Sep 2026": the month in three letters.
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function shortDate(value) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+      return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : '';
+    }
+
     function card(setlist) {
       const a = document.createElement('a');
       a.className = 'setlist-card';
@@ -69,7 +76,7 @@
       header.className = 'setlist-card__header';
       const date = document.createElement('span');
       date.className = 'setlist-card__date';
-      date.textContent = window.SetlistPdf.longDate(setlist.date) || 'No date';
+      date.textContent = shortDate(setlist.date) || 'No date';
       const title = document.createElement('span');
       title.className = 'setlist-card__venue';
       title.textContent = name(setlist);
