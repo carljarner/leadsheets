@@ -45,6 +45,15 @@
       return;
     }
     leadsheetId = initialSheet.id;
+    // Name the tab -- and so a printed PDF -- after the song, as an archive
+    // sheet's page is ("Song · leadsheets.dk"), following the title as it's edited.
+    const titleField = document.getElementById('sheet-title');
+    const nameTab = () => {
+      document.title = `${(titleField.value || initialSheet.title || 'Untitled').trim() || 'Untitled'} · leadsheets.dk`;
+    };
+    nameTab();
+    titleField.addEventListener('input', nameTab);
+    window.addEventListener('beforeprint', nameTab);
     const basedOn = initialSheet.based_on;
     if (basedOn) {
       const own = basedOn.source === 'local' && await store.get('sheets', basedOn.id);
