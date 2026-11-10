@@ -5393,8 +5393,8 @@
   // `based_on` naming its original -- an archive sheet, or one of the user's
   // own (source 'local'). A version's own versions share its original, so a
   // family is always one original plus its versions. Under the links, a
-  // sheet in a family lists it: the original first, then the versions
-  // ("Song (MatRevy 26)"), the one on screen highlighted. Each version is
+  // sheet in a family lists it by name: "Original" first, then the versions
+  // ("MatRevy 26"), the one on screen highlighted. Each version is
   // named when it's made.
   const store = window.leadsheetStore;
   const isLocal = config.storage === 'local';
@@ -5413,14 +5413,12 @@
     const list = document.getElementById('my-versions-list');
     list.textContent = '';
     if (versions.length) {
-      // One of the user's own sheets is listed under its current title.
-      const own = original.source === 'local' && !original.here && sheets.find(s => s.id === original.id);
-      const originalTitle = (own ? own.title : original.title) || 'Untitled';
       const originalHref = original.source === 'local'
         ? `/draft#${encodeURIComponent(original.id)}`
         : `/sheets/${encodeURIComponent(original.id)}`;
-      const links = [[`${originalTitle} (original)`, originalHref, !!original.here]]
-        .concat(versions.map(v => [shownTitle(v), `/draft#${encodeURIComponent(v.id)}`, v.id === leadsheetId]));
+      const links = [['Original', originalHref, !!original.here]]
+        .concat(versions.map(v => [String(v.version_name || '').trim() || 'Untitled version',
+          `/draft#${encodeURIComponent(v.id)}`, v.id === leadsheetId]));
       links.forEach(([title, href, isCurrent]) => {
         const a = mk('a', isCurrent ? 'practice-link practice-link--current' : 'practice-link', title);
         a.href = href;

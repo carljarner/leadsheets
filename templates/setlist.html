@@ -425,36 +425,45 @@
     // Typing a search moves it to the first match.
     let activeIndex = -1;
 
+    // A song with versions folds out (closed until opened) into "Original"
+    // and its versions by name; a search opens every song it matches,
+    // showing just the matching ones. `openFamilies` is what's been opened
+    // by hand; `searchClosed` what's been closed during the current search.
+    const openFamilies = new Set();
+    const searchClosed = new Set();
+
     // The user's own sheets first, under their own heading, then the archive.
-    // Versions (made with Customize) are listed each on its own, right under
-    // their song: "Song (MatRevy 26)".
+    // Versions (made with Customize) sit under their song, wherever it is.
     function renderPickList() {
       const chosen = new Set(songs.filter(s => s.type === 'song').map(rowKey));
       pickListEl.replaceChildren();
-      const matches = sheet => {
-        const haystack = `${store.displayTitle(sheet)} ${sheet.artist}`.toLowerCase();
+      const searching = searchTerms.length > 0;
+      const matches = text => {
+        const haystack = text.toLowerCase();
         return searchTerms.every(t => haystack.includes(t));
       };
-      const originalKey = b => `${b.source === 'local' ? 'local' : 'archive'}:${b.id}`;
+      const familyKey = b => `${b.source === 'local' ? 'local' : 'archive'}:${b.id}`;
       const versionsOf = new Map();
       for (const sheet of mine) {
         const b = sheet.based_on;
         if (!b || !(b.source === 'local' ? mineById.has(b.id) : byId.has(b.id))) continue;
-        const key = originalKey(b);
+        const key = familyKey(b);
         if (!versionsOf.has(key)) versionsOf.set(key, []);
         versionsOf.get(key).push(sheet);
       }
-      const isListedVersion = sheet => !!sheet.based_on && versionsOf.has(originalKey(sheet.based_on));
-      const addItem = (sheet, source, isVersion) => {
+      const isListedVersion = sheet => !!sheet.based_on && versionsOf.has(familyKey(sheet.based_on));
+      const withArtist = (li, artist) => {
+        if (!artist) return;
+        const span = document.createElement('span');
+        span.className = 'pick-list__artist';
+        span.textContent = artist;
+        li.appendChild(span);
+      };
+      const addItem = (label, artist, sheet, source, isVersion) => {
         const li = document.createElement('li');
-        li.textContent = store.displayTitle(sheet);
+        li.textContent = label;
         if (isVersion) li.classList.add('pick-list__version');
-        if (sheet.artist) {
-          const artist = document.createElement('span');
-          artist.className = 'pick-list__artist';
-          artist.textContent = sheet.artist;
-          li.appendChild(artist);
-        }
+        withArtist(li, artist);
         const isChosen = chosen.has(rowKey({ source, id: sheet.id }));
         li.classList.toggle('is-selected', isChosen);
         if (!isChosen) {
@@ -464,11 +473,47 @@
         }
         pickListEl.appendChild(li);
       };
+      const addFamily = (sheet, key, children) => {
+        const isOpen = searching ? !searchClosed.has(key) : openFamilies.has(key);
+        const li = document.createElement('li');
+        li.className = 'pick-list__family';
+        li.setAttribute('aria-expanded', String(isOpen));
+        const chevron = document.createElement('span');
+        chevron.className = 'pick-list__toggle';
+        chevron.textContent = isOpen ? '▾' : '▸';
+        li.append(chevron, sheet.title || 'Untitled');
+        withArtist(li, sheet.artist);
+        const toggle = () => {
+          const set = searching ? searchClosed : openFamilies;
+          if (set.has(key)) set.delete(key); else set.add(key);
+          renderPickList();
+        };
+        li.addEventListener('click', toggle);
+        // Without a search, the keys open and close it; with one, they go
+        // straight to the songs in it.
+        if (!searching) {
+          li.classList.add('pick-list__choice');
+          li.choose = toggle;
+        }
+        pickListEl.appendChild(li);
+        if (isOpen) children.forEach(c => addItem(c.label, '', c.sheet, c.source, true));
+      };
       const addGroup = (sheets, source, heading) => {
         const entries = [];
         for (const sheet of sheets) {
-          const versions = (versionsOf.get(`${source || 'archive'}:${sheet.id}`) || []).filter(matches);
-          if (matches(sheet) || versions.length) entries.push([sheet, versions]);
+          const key = familyKey({ source, id: sheet.id });
+          const versions = versionsOf.get(key);
+          if (!versions) {
+            if (!searching || matches(`${sheet.title} ${sheet.artist}`)) entries.push({ sheet });
+            continue;
+          }
+          const children = [{ label: 'Original', sheet, source, text: `${sheet.title} ${sheet.artist} original` }]
+            .concat(versions.map(v => {
+              const name = String(v.version_name || '').trim();
+              return { label: name || 'Untitled version', sheet: v, source: 'local', text: `${v.title} ${v.artist} ${name}` };
+            }));
+          const shown = searching ? children.filter(c => matches(c.text)) : children;
+          if (shown.length) entries.push({ sheet, key, children: shown });
         }
         if (heading && entries.length) {
           const li = document.createElement('li');
@@ -476,9 +521,9 @@
           li.textContent = heading;
           pickListEl.appendChild(li);
         }
-        entries.forEach(([sheet, versions]) => {
-          addItem(sheet, source, false);
-          versions.forEach(v => addItem(v, 'local', true));
+        entries.forEach(e => {
+          if (e.children) addFamily(e.sheet, e.key, e.children);
+          else addItem(store.displayTitle(e.sheet), e.sheet.artist, e.sheet, source, false);
         });
       };
       const ownSheets = mine.filter(s => !isListedVersion(s));
@@ -497,6 +542,7 @@
 
     searchInput.addEventListener('input', () => {
       searchTerms = searchInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+      searchClosed.clear();
       activeIndex = searchTerms.length ? 0 : -1;
       renderPickList();
     });
@@ -520,6 +566,7 @@
     function chooseSong(sheet, source) {
       searchInput.value = '';
       searchTerms = [];
+      searchClosed.clear();
       activeIndex = -1;
       addSong(sheet, source);
       searchInput.focus();
@@ -619,7 +666,8 @@
         titleTd.className = 'title-cell';
         titleTd.textContent = store.displayTitle(sheet);
         titleTd.title = store.displayTitle(sheet);
-        if (song.source === 'local') {
+        // A version of an archive song belongs with the archive: no tag.
+        if (song.source === 'local' && (!sheet.based_on || sheet.based_on.source === 'local')) {
           const tag = document.createElement('span');
           tag.className = 'mine-tag';
           tag.textContent = 'yours';

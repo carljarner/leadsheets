@@ -1996,6 +1996,8 @@ input.top-box__search {
 .pick-list__artist { color: var(--text-dim); margin-left: 0.4rem; font-size: 0.78rem; }
 /* A version, right under its song. */
 #sheet-pick-list li.pick-list__version { margin-left: 1.2rem; }
+/* A song with versions: opens to show them. */
+.pick-list__toggle { display: inline-block; width: 0.9rem; color: var(--text-dim); }
 #sheet-pick-list li.pick-list__group {
   background: none;
   border: none;
