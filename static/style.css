@@ -1616,6 +1616,8 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 .el-volta-line { stroke: #1a1815; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .el-volta-text { fill: #1a1815; font-family: 'MuseJazzText', cursive; }
 
+.el-hairpin-line { stroke: #1a1815; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+
 .el-arrow-path { stroke: #1a1815; stroke-width: 1.5; fill: none; }
 .el-arrow-hit { stroke: transparent; stroke-width: 14; fill: none; cursor: grab; }
 .el-arrow-handle { fill: #fff; stroke: #1a1815; stroke-width: 1.5; cursor: grab; opacity: 0.55; }

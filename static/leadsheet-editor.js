@@ -31,6 +31,7 @@
   const SLOT_CHORD_PAD = 5; // gap between a slot's left edge and the chord in it, in bars with several slots
   const SLOT_CHORD_OVERHANG = 4; // how far the last chord of a crowded bar may run past its barline
   const VOLTA_W = 50, VOLTA_H = 14, VOLTA_FONT_SIZE = 8;
+  const HAIRPIN_W = 90, HAIRPIN_H = 12; // a crescendo / diminuendo's default length and opening
   // Starting font sizes for new text boxes: the averages from the test sheet.
   const TITLE_FONT_SIZE = 17, CHORD_FONT_SIZE = 14, TEXT_FONT_SIZE = 12;
 
@@ -671,6 +672,7 @@
     row: { w: [30, PAGE_W], h: [16, 300] },
     repeat: { w: [10, 60], h: [16, 200] },
     volta: { w: [16, PAGE_W], h: [10, 60], fontSize: [6, 32] },
+    hairpin: { w: [16, PAGE_W], h: [4, 40] },
     glyphFont: [12, 100],
     rhythmbar: { h: [12, 100] },
     notestaff: { h: [24, 160] },
@@ -684,6 +686,7 @@
       case 'row': return LIMITS.row;
       case 'repeat': return LIMITS.repeat;
       case 'volta': return LIMITS.volta;
+      case 'hairpin': return LIMITS.hairpin;
       case 'rhythmbar': return { w: [rhythmBarMinWidth(el), PAGE_W], h: LIMITS.rhythmbar.h };
       case 'notestaff': return { w: [staffMinWidth(el), PAGE_W - notestaffLeadWidth(el)], h: LIMITS.notestaff.h };
       case 'timesig': case 'keysig': return { h: LIMITS.looseSig.h };
@@ -1197,7 +1200,7 @@
         const { w, h } = textBoxSize(chord ? displayChord(el.text) : el.text, el.fontSize, chord);
         return { x: el.x, y: el.y, w, h };
       }
-      case 'row': case 'repeat': case 'volta':
+      case 'row': case 'repeat': case 'volta': case 'hairpin':
         return { x: el.x, y: el.y, w: el.w, h: el.h };
       case 'glyph': {
         const { w, h } = glyphSize(el);
@@ -1838,6 +1841,8 @@
       return { id: uid('el'), type: 'repeat', x, y, w: REPEAT_MARK_W, h: BAR_H, kind: 'end' };
     } else if (type === 'volta') {
       return { id: uid('el'), type: 'volta', x, y, w: VOLTA_W, h: VOLTA_H, text: '1.', fontSize: VOLTA_FONT_SIZE };
+    } else if (type === 'hairpin-cresc' || type === 'hairpin-dim') {
+      return { id: uid('el'), type: 'hairpin', kind: type === 'hairpin-cresc' ? 'cresc' : 'dim', x, y, w: HAIRPIN_W, h: HAIRPIN_H };
     } else if (type === 'arrow') {
       return { id: uid('el'), type: 'arrow', x1: x, y1: y, x2: x + 70, y2: y - 40, bow: { dx: 0, dy: 0 } };
     } else if (type === 'glyph') {
@@ -2123,6 +2128,22 @@
   // at the left, open at the right, and an editable number tucked under the
   // line. Only the bracket line and the number are grabbable, so the empty
   // space inside stays clear for whatever sits beneath it.
+  // A crescendo (<) or diminuendo (>) hairpin: two lines meeting at one end
+  // and opening to the box's full height at the other. Like the volta, only
+  // the lines are grabbable; the corner stretches it.
+  function renderHairpinEl(svg, el) {
+    const { w, h } = el;
+    const g = svgGroup({ cls: 'el-group' });
+    const [tipX, openX] = el.kind === 'dim' ? [el.x + w, el.x] : [el.x, el.x + w];
+    const d = `M ${openX} ${el.y} L ${tipX} ${el.y + h / 2} L ${openX} ${el.y + h}`;
+    g.appendChild(svgPath(d, { cls: 'el-hairpin-line' }));
+    const startX = el.x, startY = el.y;
+    wireDragAndClick(g.appendChild(svgPath(d, { cls: 'el-arrow-hit' })),
+      (ddx, ddy) => { el.x = startX + ddx; el.y = startY + ddy; markDirty(); renderSvg(); }, null, el);
+    addResizeHandle(g, el.x + w, el.y + h, sizeDrag(el), el);
+    svg.appendChild(g);
+  }
+
   function renderVoltaEl(svg, el) {
     const { w, h } = el;
     const g = svgGroup({ cls: 'el-group' });
@@ -3152,6 +3173,7 @@
     else if (el.type === 'row') renderRowEl(svg, el);
     else if (el.type === 'repeat') renderRepeatEl(svg, el);
     else if (el.type === 'volta') renderVoltaEl(svg, el);
+    else if (el.type === 'hairpin') renderHairpinEl(svg, el);
     else if (el.type === 'arrow') renderArrowEl(svg, el);
     else if (el.type === 'glyph') renderGlyphEl(svg, el);
     else if (el.type === 'timesig' || el.type === 'keysig') renderLooseSigEl(svg, el);
@@ -3761,7 +3783,7 @@
 
   const ELEMENT_NAMES = {
     title: 'Title box', chordText: 'Chord text', text: 'Text', row: 'Bars', repeat: 'Repeat sign',
-    volta: 'Volta ending', arrow: 'Arrow', glyph: 'Symbol', rhythmbar: 'Rhythm bar', notestaff: 'Note staff',
+    volta: 'Volta ending', hairpin: 'Hairpin', arrow: 'Arrow', glyph: 'Symbol', rhythmbar: 'Rhythm bar', notestaff: 'Note staff',
     timesig: 'Time signature', keysig: 'Key signature',
   };
   const TEXT_TYPE_OPTIONS = [
@@ -3886,6 +3908,14 @@
         { kind: 'text', id: 'text', label: 'Text', wide: true, get: e => e.text || '', set: (e, v) => { e.text = v; } },
         { kind: 'buttons', items: ['1.', '2.', '3.', '1, 2.'].map(t => ({ label: t, onClick: e => { e.text = t; } })) },
         numField('Size', 'fontSize', { stepper: true, integer: true, min: LIMITS.volta.fontSize[0], max: LIMITS.volta.fontSize[1] }),
+      ] },
+      geometrySection(el),
+      actionsSection(),
+    ],
+    hairpin: el => [
+      { fields: [
+        { kind: 'segmented', id: 'kind', label: 'Kind', options: [{ value: 'cresc', label: 'Crescendo' }, { value: 'dim', label: 'Diminuendo' }],
+          get: e => e.kind, set: (e, v) => { e.kind = v; } },
       ] },
       geometrySection(el),
       actionsSection(),
