@@ -5594,6 +5594,12 @@
     return new XMLSerializer().serializeToString(clone);
   }
 
+  // Chromium-based browsers (Chrome, Edge, Brave, Opera, Android Chrome; the
+  // UA's "Chrome/"), but no browser on iOS, which are all WebKit underneath
+  // (their UAs say CriOS/EdgiOS instead). Firefox keeps the wait: untested.
+  const FONTS_READY_AT_DECODE = /(Chrome|Chromium|Edg|OPR)\//.test(navigator.userAgent)
+    && !/iPhone|iPad|iPod/.test(navigator.userAgent);
+
   async function sheetJpegBytes() {
     const markup = sheetSvgMarkup(await loadShareFontCss());
     const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
@@ -5611,10 +5617,14 @@
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
       // WebKit can paint an SVG image before its embedded fonts are ready;
-      // drawing a second time a moment later picks them up.
+      // drawing a second time a moment later picks them up. Chromium has them
+      // by the time decode() resolves (the pages come out byte-identical
+      // either way), so it skips the wait: a setlist PDF is then ~6x faster.
       draw();
-      await new Promise(r => setTimeout(r, 150));
-      draw();
+      if (!FONTS_READY_AT_DECODE) {
+        await new Promise(r => setTimeout(r, 150));
+        draw();
+      }
       const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
       return { bytes: new Uint8Array(await blob.arrayBuffer()), w: canvas.width, h: canvas.height };
     } finally {
