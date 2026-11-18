@@ -928,12 +928,12 @@ a.arr-file__open:hover { color: var(--accent-2); text-decoration: underline; }
 /* ---------- Lead sheet editor ---------- */
 @font-face {
   font-family: 'MuseJazzText';
-  src: url('/static/fonts/MuseJazzText.otf') format('opentype');
+  src: url('fonts/MuseJazzText.otf') format('opentype');
   font-display: swap;
 }
 @font-face {
   font-family: 'MuseJazz';
-  src: url('/static/fonts/MuseJazz.otf') format('opentype');
+  src: url('fonts/MuseJazz.otf') format('opentype');
   font-display: swap;
 }
 

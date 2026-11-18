@@ -9,8 +9,15 @@
   // where Save and Delete go -- the archive, or the user's own sheets
   // (static/user-store.js) -- and whether an archive sheet
   // offers "Make my version".
+  // Another site can host the editor (README: "Embedding the editor"):
+  // storage 'host' hands every save to its config.save(model), which
+  // resolves to {ok, message?}; canDelete: false drops the Delete button;
+  // fontBase is where the MuseJazz fonts are served from.
   const config = Object.assign(
-    { canEdit: false, canCopy: false, storage: 'server', saveUrl: '', deleteUrl: '', afterDeleteUrl: '/sheets' },
+    {
+      canEdit: false, canCopy: false, canDelete: true, storage: 'server',
+      saveUrl: '', deleteUrl: '', afterDeleteUrl: '/sheets', fontBase: '/static/fonts/',
+    },
     window.LEADSHEET_CONFIG || {},
   );
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -5363,6 +5370,17 @@
         renderVersions();
         return;
       }
+      if (config.storage === 'host') {
+        const result = (await config.save(model)) || {};
+        if (!result.ok) {
+          status.textContent = result.message || 'Failed to save.';
+          status.classList.add('save-status--error');
+          return;
+        }
+        dirty = false;
+        updateSaveStatus();
+        return;
+      }
       const resp = await fetch(config.saveUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5544,7 +5562,7 @@
   async function loadShareFontCss() {
     if (shareFontCss) return shareFontCss;
     const faces = await Promise.all(['MuseJazzText', 'MuseJazz'].map(async name => {
-      const buf = await (await fetch(`/static/fonts/${name}.otf`)).arrayBuffer();
+      const buf = await (await fetch(`${config.fontBase}${name}.otf`)).arrayBuffer();
       let bin = '';
       const bytes = new Uint8Array(buf);
       for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
@@ -5803,7 +5821,8 @@
     if (e.key === 'Escape' && !confirmModal.hidden) answerConfirm(false);
   });
 
-  document.getElementById('delete-btn').addEventListener('click', async () => {
+  if (!config.canDelete) document.getElementById('delete-btn').remove();
+  else document.getElementById('delete-btn').addEventListener('click', async () => {
     // The admin's sheets' Arrangements go with them: a count for an archive
     // sheet, counts by id for the admin's drafts.
     const files = (typeof config.arrangementFiles === 'object'

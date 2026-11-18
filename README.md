@@ -77,6 +77,23 @@ methods:
 Every record has a random id and `updated_at`, so giving visitors accounts
 later means a folder per user and the same merge to upload their browsers.
 
+### Embedding the editor
+
+Another site can run the editor with its own storage (matematikrevy.dk's
+band page does: it copies these files unchanged with its
+`scripts/sync-leadsheets.sh`, so keep this contract stable):
+
+- Files: `static/leadsheet-editor.js`, `static/style.css` and
+  `static/fonts/` (the stylesheet finds the fonts at `fonts/` next to
+  itself), plus the markup in `templates/_leadsheet_editor_body.html` (plain
+  HTML apart from Jinja `{# … #}` comments, which the host strips).
+- Before the script loads, set the globals `initialSheet` (the sheet),
+  `leadsheetId` and `window.LEADSHEET_CONFIG`, with
+  `storage: 'host'`, `save: async (model) => ({ ok, message })`,
+  `canEdit`, `canCopy: false`, `canMove: false`, `canDelete: false` and
+  `fontBase` (the fonts' URL, ending in `/`).
+- `?mode=edit` opens Edit mode (when `canEdit`), `?key=E` opens it
+  transposed.
 Sheets are stored as `DATA_DIR/leadsheets/<id>.json`.
 Their arrangements are in `DATA_DIR/arrangements/<id>/`: an `index.json` of
 folders and files, and the files themselves. The ids match the
